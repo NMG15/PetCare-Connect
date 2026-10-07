@@ -1,0 +1,61 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    match /admins/{adminId} {
+      allow read: if signedIn() && request.auth.uid == adminId;
+      allow write: if false;
+    }
+
+    // Catálogo global de tipos de cuidado.
+    // Todos los usuarios autenticados pueden leerlo.
+    // Solo un administrador puede crearlo, editarlo o eliminarlo.
+    match /careCatalog/{careId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Marca interna que evita volver a crear el catálogo base
+    // si el administrador decide quitar todos los cuidados.
+    match /appConfig/{docId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read, create, update, delete:
+        if signedIn() &&
+        (request.auth.uid == userId || isAdmin());
+
+      match /pets/{petId} {
+        allow read, create, update, delete:
+          if signedIn() &&
+          (request.auth.uid == userId || isAdmin());
+
+        match /care/{careId} {
+          allow read, create, update, delete:
+            if signedIn() &&
+            (request.auth.uid == userId || isAdmin());
+        }
+
+        // Cada usuario guarda sus propios horarios en sus mascotas.
+        // El ADMIN puede consultarlos o editarlos para apoyar al usuario.
+        match /reminders/{reminderId} {
+          allow read, create, update, delete:
+            if signedIn() &&
+            (request.auth.uid == userId || isAdmin());
+        }
+      }
+    }
+  }
+}
