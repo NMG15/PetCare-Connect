@@ -1,0 +1,6 @@
+# EJEMPLO. NO rellenar ni enviar contraseñas por chat o Git.
+# No uses este archivo como llave real.
+storePassword=TU_CONTRASENA_PRIVADA
+keyPassword=TU_CONTRASENA_PRIVADA
+keyAlias=upload
+storeFile=app/upload-keystore.jks

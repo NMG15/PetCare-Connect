@@ -56,15 +56,16 @@ void main() {
         ),
       );
 
-      expect(find.text('Un recordatorio para Kira'), findsOneWidget);
+      expect(find.text('Recordatorio · Kira'), findsOneWidget);
       expect(find.text('5:00 p. m.'), findsOneWidget);
-      expect(find.text('3  ·  Días de repetición'), findsOneWidget);
-
+      // La sección de días está más abajo en un ListView que construye
+      // elementos bajo demanda. Primero desplázate hasta ella y luego búscala.
       await tester.scrollUntilVisible(
-        find.text('Guardar horario'),
-        250,
+        find.textContaining('Días de repetición'),
+        220,
         scrollable: find.byType(Scrollable).first,
       );
+      expect(find.textContaining('Días de repetición'), findsOneWidget);
 
       expect(find.text('Guardar horario'), findsOneWidget);
       expect(find.text('Probar notificación ahora'), findsNothing);

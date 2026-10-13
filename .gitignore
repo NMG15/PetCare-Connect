@@ -39,3 +39,45 @@ android/app/*.keystore
 *.apks
 *.symbols
 *.map.json
+
+# ========================================
+# PETCARE CONNECT - PROTECCION GIT
+# ========================================
+
+# Archivos privados
+key.properties
+*.jks
+*.keystore
+*.p12
+*.p8
+*.pem
+.env
+.env.*
+!.env.example
+**/*service-account*.json
+**/*serviceAccount*.json
+**/*firebase-adminsdk*.json
+
+# Configuracion Firebase Android
+android/app/google-services.json
+
+# Archivos generados
+.dart_tool/
+.firebase/
+build/
+**/build/
+dist/
+*.apk
+*.aab
+
+# Respaldos y temporales
+auth_pages_respaldo.txt
+*.bak
+*.log
+
+# Configuraciones locales
+.idea/
+.vscode/
+
+# Respaldos adicionales
+*.respaldo

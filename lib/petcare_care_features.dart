@@ -8,7 +8,6 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as timezone_data;
 import 'package:timezone/timezone.dart' as tz;
 
-const _darkGreen = Color(0xFF193B32);
 const _green = Color(0xFF2F8F6B);
 const _pale = Color(0xFFEAF5EF);
 const _weekdayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -316,7 +315,7 @@ class _PetCareVisibilityPageState extends State<PetCareVisibilityPage> {
       await PetCareAlerts.instance.syncForUser(_userUid());
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('No se pudo actualizar el cuidado. Comprueba Internet.'),
         ));
       }
@@ -325,20 +324,20 @@ class _PetCareVisibilityPageState extends State<PetCareVisibilityPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Mis cuidados visibles')),
-        body: busy ? const Center(child: CircularProgressIndicator())
+        appBar: AppBar(title: Text('Mis cuidados visibles')),
+        body: busy ? Center(child: CircularProgressIndicator())
             : ListView(
                 padding: const EdgeInsets.all(18),
                 children: [
                   Text('Elige los cuidados que necesita ${widget.petName}.',
-                      style: const TextStyle(fontSize: 20,
-                          fontWeight: FontWeight.bold, color: _darkGreen)),
-                  const SizedBox(height: 8),
-                  const Text('Ocultar un cuidado no borra su historial. '
+                      style: TextStyle(fontSize: 20,
+                          fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+                  SizedBox(height: 8),
+                  Text('Ocultar un cuidado no borra su historial. '
                       'Mientras esté oculto, tampoco se programarán sus avisos.'),
-                  const SizedBox(height: 14),
+                  SizedBox(height: 14),
                   if (catalog.isEmpty)
-                    const Card(child: Padding(
+                    Card(child: Padding(
                       padding: EdgeInsets.all(20),
                       child: Text('No hay cuidados activos para esta especie. '
                           'El administrador puede agregarlos al catálogo.'),
@@ -410,7 +409,7 @@ class _PetRemindersPageState extends State<PetRemindersPage> {
     } catch (_) {
       if (mounted) {
         setState(() => busy = false);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('No se pudieron cargar los horarios. Revisa Internet.'),
         ));
       }
@@ -432,15 +431,15 @@ class _PetRemindersPageState extends State<PetRemindersPage> {
   Future<void> delete(Map<String, dynamic> row) async {
     final ok = await showDialog<bool>(context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar horario'),
+        title: Text('Eliminar horario'),
         content: Text('¿Quitar el aviso de «${row['careLabel']}» a las '
             '${_timeLabel((row['hour'] as num).toInt(), (row['minute'] as num).toInt())}? '
             'Los cuidados ya registrados seguirán en el historial.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
+              child: Text('Cancelar')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Eliminar horario')),
+              child: Text('Eliminar horario')),
         ],
       ),
     );
@@ -451,7 +450,7 @@ class _PetRemindersPageState extends State<PetRemindersPage> {
       await load();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('No se pudo eliminar el horario.'),
         ));
       }
@@ -463,60 +462,60 @@ class _PetRemindersPageState extends State<PetRemindersPage> {
     appBar: AppBar(title: Text('Horarios de ${widget.petName}')),
     floatingActionButton: FloatingActionButton.extended(
       onPressed: busy || careTypes.isEmpty ? null : () => edit(),
-      icon: const Icon(Icons.add_alarm),
-      label: const Text('Nuevo horario'),
+      icon: Icon(Icons.add_alarm),
+      label: Text('Nuevo horario'),
     ),
-    body: busy ? const Center(child: CircularProgressIndicator())
+    body: busy ? Center(child: CircularProgressIndicator())
         : RefreshIndicator(
           onRefresh: load,
           child: ListView(
             padding: const EdgeInsets.fromLTRB(18, 12, 18, 110),
             children: [
               Card(
-                color: _pale,
+                color: Theme.of(context).colorScheme.primaryContainer,
                 child: Padding(
                   padding: const EdgeInsets.all(18),
                   child: Row(children: [
-                    const CircleAvatar(
-                      radius: 23, backgroundColor: Colors.white,
-                      child: Icon(Icons.notifications_active_outlined, color: _green),
+                    CircleAvatar(
+                      radius: 23, backgroundColor: Theme.of(context).colorScheme.surface,
+                      child: Icon(Icons.notifications_active_outlined, color: Theme.of(context).colorScheme.primary),
                     ),
-                    const SizedBox(width: 13),
+                    SizedBox(width: 13),
                     Expanded(child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Sus cuidados, a tiempo',
+                        Text('Sus cuidados, a tiempo',
                           style: TextStyle(fontSize: 18,
-                              fontWeight: FontWeight.w800, color: _darkGreen)),
-                        const SizedBox(height: 5),
+                              fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
+                        SizedBox(height: 5),
                         Text('Elige qué cuidado recordar, a qué hora y en qué días. '
                           '${reminders.length} ${reminders.length == 1 ? 'horario activo' : 'horarios activos'}.',
-                          style: const TextStyle(height: 1.35)),
+                          style: TextStyle(height: 1.35)),
                       ],
                     )),
                   ]),
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
               Row(children: [
-                const Expanded(child: Text('Mis recordatorios',
+                Expanded(child: Text('Mis recordatorios',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800,
-                      color: _darkGreen))),
+                      color: Theme.of(context).colorScheme.onSurface))),
                 Text('${reminders.length}',
-                  style: const TextStyle(color: _green, fontWeight: FontWeight.w800)),
+                  style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w800)),
               ]),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               if (reminders.isEmpty)
-                const Card(child: Padding(padding: EdgeInsets.all(22),
+                Card(child: Padding(padding: EdgeInsets.all(22),
                   child: Column(children: [
-                    Icon(Icons.event_available, color: _green, size: 36),
+                    Icon(Icons.event_available, color: Theme.of(context).colorScheme.primary, size: 36),
                     SizedBox(height: 10),
                     Text('Aún no hay horarios para esta mascota.',
                       textAlign: TextAlign.center),
                     SizedBox(height: 5),
                     Text('Pulsa «Nuevo horario» para programar su comida u otro cuidado.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.black54)),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                   ]),
                 )),
               ...reminders.map((row) {
@@ -536,42 +535,42 @@ class _PetRemindersPageState extends State<PetRemindersPage> {
                         Row(children: [
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            decoration: BoxDecoration(color: _pale,
+                            decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer,
                               borderRadius: BorderRadius.circular(14)),
                             child: Text(_friendlyTime(hour, minute),
-                              style: const TextStyle(color: _darkGreen,
+                              style: TextStyle(color: Theme.of(context).colorScheme.onSurface,
                                 fontSize: 18, fontWeight: FontWeight.w800)),
                           ),
-                          const SizedBox(width: 12),
+                          SizedBox(width: 12),
                           Expanded(child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text((row['careLabel'] ?? 'Cuidado').toString(),
-                                style: const TextStyle(fontSize: 16,
+                                style: TextStyle(fontSize: 16,
                                     fontWeight: FontWeight.w800)),
-                              const SizedBox(height: 4),
-                              Text(daysLabel, style: const TextStyle(
-                                  color: Colors.black54)),
+                              SizedBox(height: 4),
+                              Text(daysLabel, style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
                             ],
                           )),
                         ]),
                         if ((row['note'] ?? '').toString().trim().isNotEmpty) ...[
-                          const SizedBox(height: 10),
+                          SizedBox(height: 10),
                           Text(row['note'].toString(),
-                            style: const TextStyle(color: Colors.black54)),
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                         ],
-                        const Divider(height: 22),
+                        Divider(height: 22),
                         Row(children: [
                           Expanded(child: OutlinedButton.icon(
                             onPressed: () => edit(row),
-                            icon: const Icon(Icons.edit_outlined, size: 18),
-                            label: const Text('Editar'),
+                            icon: Icon(Icons.edit_outlined, size: 18),
+                            label: Text('Editar'),
                           )),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 8),
                           Expanded(child: TextButton.icon(
                             onPressed: () => delete(row),
-                            icon: const Icon(Icons.delete_outline, size: 18),
-                            label: const Text('Eliminar'),
+                            icon: Icon(Icons.delete_outline, size: 18),
+                            label: Text('Eliminar'),
                           )),
                         ]),
                       ],
@@ -641,7 +640,7 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
       if (!permitted) {
         if (mounted) {
           setState(() => saving = false);
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('Activa las notificaciones para guardar un horario con aviso.'),
           ));
         }
@@ -685,43 +684,46 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
         ? 'Crear horario' : 'Editar horario')),
     body: ListView(padding: const EdgeInsets.fromLTRB(18, 12, 18, 36),
       children: [
-        Card(color: _pale, child: Padding(
+        Card(color: Theme.of(context).colorScheme.primaryContainer, child: Padding(
           padding: const EdgeInsets.all(17),
           child: Row(children: [
-            const Icon(Icons.pets, color: _green, size: 28),
-            const SizedBox(width: 12),
+            Icon(Icons.pets, color: Theme.of(context).colorScheme.primary, size: 28),
+            SizedBox(width: 12),
             Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Un recordatorio para ${widget.petName}',
-                    style: const TextStyle(fontSize: 18,
-                        fontWeight: FontWeight.w800, color: _darkGreen)),
-                const SizedBox(height: 3),
-                const Text('Elige un cuidado, su hora y los días de repetición.'),
+                Text('Recordatorio · ${widget.petName}',
+                    style: TextStyle(fontSize: 18,
+                        fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
+                SizedBox(height: 3),
+                Text('Elige un cuidado, su hora y los días de repetición.'),
               ],
             )),
           ]),
         )),
-        const SizedBox(height: 22),
-        const Text('1  ·  Elige el cuidado', style: TextStyle(
-            fontSize: 17, fontWeight: FontWeight.w800, color: _darkGreen)),
-        const SizedBox(height: 9),
+        SizedBox(height: 22),
+        Text('1  ·  Elige el cuidado', style: TextStyle(
+            fontSize: 17, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
+        SizedBox(height: 9),
+        Text('Cuidado', style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w600)),
+        const SizedBox(height: 7),
         DropdownButtonFormField<String>(
           isExpanded: true,
           initialValue: careId,
           decoration: const InputDecoration(
             prefixIcon: Icon(Icons.check_circle_outline),
-            labelText: 'Cuidado que quieres recordar',
           ),
           items: widget.careTypes.map((row) => DropdownMenuItem(
             value: row['id'].toString(), child: Text(_careName(row)),
           )).toList(),
           onChanged: (value) => setState(() => careId = value),
         ),
-        const SizedBox(height: 23),
-        const Text('2  ·  Elige la hora', style: TextStyle(
-            fontSize: 17, fontWeight: FontWeight.w800, color: _darkGreen)),
-        const SizedBox(height: 9),
+        SizedBox(height: 23),
+        Text('2  ·  Elige la hora', style: TextStyle(
+            fontSize: 17, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
+        SizedBox(height: 9),
         Card(child: InkWell(
           borderRadius: BorderRadius.circular(22),
           onTap: () async {
@@ -733,70 +735,79 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
           child: Padding(
             padding: const EdgeInsets.all(18),
             child: Row(children: [
-              const CircleAvatar(backgroundColor: _pale,
-                child: Icon(Icons.schedule, color: _green)),
-              const SizedBox(width: 13),
+              CircleAvatar(backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                child: Icon(Icons.schedule, color: Theme.of(context).colorScheme.primary)),
+              SizedBox(width: 13),
               Expanded(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Hora del aviso',
-                    style: TextStyle(color: Colors.black54)),
-                  const SizedBox(height: 3),
+                  Text('Hora del aviso',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  SizedBox(height: 3),
                   Text(_friendlyTime(time.hour, time.minute),
-                    style: const TextStyle(fontSize: 25,
-                        fontWeight: FontWeight.w800, color: _darkGreen)),
+                    style: TextStyle(fontSize: 25,
+                        fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
                 ],
               )),
-              const Icon(Icons.edit_outlined, color: _green),
+              Icon(Icons.edit_outlined, color: Theme.of(context).colorScheme.primary),
             ]),
           ),
         )),
-        const SizedBox(height: 23),
-        const Text('3  ·  Días de repetición', style: TextStyle(
-            fontSize: 17, fontWeight: FontWeight.w800, color: _darkGreen)),
-        const SizedBox(height: 5),
-        Text(weekdays.isEmpty ? 'Todos los días' : 'Días seleccionados: ${weekdays.length}',
-            style: const TextStyle(color: Colors.black54)),
-        const SizedBox(height: 10),
+        SizedBox(height: 23),
+        Text('3  ·  Días de repetición', style: TextStyle(
+            fontSize: 17, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
+        SizedBox(height: 5),
+        Row(children: [
+          Expanded(child: Text(
+            weekdays.isEmpty || weekdays.length == 7
+              ? 'Todos los días' : '${weekdays.length} días seleccionados',
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          )),
+          ActionChip(
+            avatar: const Icon(Icons.done_all_rounded, size: 18),
+            label: const Text('Todos los días'),
+            onPressed: () => setState(() => weekdays.clear()),
+          ),
+        ]),
+        SizedBox(height: 10),
         Wrap(spacing: 6, runSpacing: 5,
           children: List.generate(7, (index) {
             final day = index + 1;
             return FilterChip(
               label: Text(_weekdayNames[index]),
-              selected: weekdays.contains(day),
+              selected: weekdays.isEmpty || weekdays.contains(day),
               onSelected: (selected) => setState(() {
+                // Un conjunto vacío significa todos los días en los datos existentes.
+                if (weekdays.isEmpty) {
+                  weekdays.addAll(List<int>.generate(7, (i) => i + 1));
+                }
                 if (selected) { weekdays.add(day); }
                 else { weekdays.remove(day); }
+                if (weekdays.length == 7) weekdays.clear();
               }),
             );
           }),
         ),
-        const SizedBox(height: 9),
-        const Text('Sin días seleccionados = aviso diario.',
-          style: TextStyle(color: Colors.black54, fontSize: 12)),
-        const SizedBox(height: 23),
-        const Text('Nota opcional', style: TextStyle(
-            fontSize: 17, fontWeight: FontWeight.w800, color: _darkGreen)),
-        const SizedBox(height: 9),
+        SizedBox(height: 23),
+        Text('Nota opcional', style: TextStyle(
+            fontSize: 17, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
+        SizedBox(height: 9),
         TextField(controller: note, maxLines: 2,
           decoration: const InputDecoration(
             prefixIcon: Icon(Icons.edit_note_outlined),
-            labelText: 'Información del cuidado',
             hintText: 'Ej. 1 taza de croquetas',
           ),
         ),
         const SizedBox(height: 24),
-        SizedBox(height: 54, child: FilledButton.icon(
-          onPressed: saving ? null : save,
-          icon: const Icon(Icons.check),
-          label: Text(saving ? 'Guardando...' : 'Guardar horario'),
-        )),
-        const SizedBox(height: 10),
-        const Text('El aviso se programa en este celular. Android puede '
-          'retrasarlo por ahorro de energía; tu horario queda guardado en Firebase.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.black54, fontSize: 12)),
       ],
+    ),
+    bottomNavigationBar: _petCareRemindersFooter(
+      context,
+      FilledButton.icon(
+        onPressed: saving ? null : save,
+        icon: const Icon(Icons.check),
+        label: Text(saving ? 'Guardando...' : 'Guardar horario'),
+      ),
     ),
   );
 }
@@ -951,10 +962,10 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        _dot(color, size: 8), const SizedBox(width: 7),
+        _dot(color, size: 8), SizedBox(width: 7),
         Flexible(child: Text('${_nameForType(key)} · ${_times(count)}',
           maxLines: 2, overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
       ]),
     );
   }
@@ -972,28 +983,28 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
               maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.75),
             child: ListView(shrinkWrap: true, children: [
               Text('${day.day} de ${_months[day.month - 1]} de ${day.year}',
-                style: const TextStyle(fontSize: 22,
-                  fontWeight: FontWeight.w800, color: _darkGreen)),
-              const SizedBox(height: 5),
+                style: TextStyle(fontSize: 22,
+                  fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
+              SizedBox(height: 5),
               Text('${_careCount(rows.length)} registrados ese día',
-                style: const TextStyle(color: Colors.black54)),
-              const SizedBox(height: 17),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              SizedBox(height: 17),
               if (rows.isEmpty)
-                const Text('No hay cuidados registrados en esta fecha.'),
+                Text('No hay cuidados registrados en esta fecha.'),
               ...grouped.map((group) => Padding(
                 padding: const EdgeInsets.only(bottom: 9),
                 child: Row(children: [
                   _dot(_colorFor(group.key), size: 11),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(child: Text(_nameForType(group.key),
-                    style: const TextStyle(fontWeight: FontWeight.w600))),
+                    style: TextStyle(fontWeight: FontWeight.w600))),
                   Text(_times(group.value),
-                    style: const TextStyle(fontWeight: FontWeight.w800)),
+                    style: TextStyle(fontWeight: FontWeight.w800)),
                 ]))),
               if (rows.isNotEmpty) ...[
-                const Divider(height: 27),
-                const Text('Registros del día', style: TextStyle(
-                  fontWeight: FontWeight.w800, color: _darkGreen)),
+                Divider(height: 27),
+                Text('Registros del día', style: TextStyle(
+                  fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
                 ...rows.map((row) => ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: _dot(_colorFor(_typeKey(row)), size: 10),
@@ -1034,7 +1045,7 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
     } catch (_) {
       if (mounted) {
         setState(() => busy = false);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('No se pudo cargar el historial. Comprueba Internet.'),
         ));
       }
@@ -1121,23 +1132,23 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 16, 12, 15),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Row(children: [
-            Icon(Icons.calendar_month_outlined, color: _green, size: 23),
+          Row(children: [
+            Icon(Icons.calendar_month_outlined, color: Theme.of(context).colorScheme.primary, size: 23),
             SizedBox(width: 8),
             Expanded(child: Text('Calendario de cuidados', style: TextStyle(
-              color: _darkGreen, fontSize: 18, fontWeight: FontWeight.w800))),
+              color: Theme.of(context).colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.w800))),
           ]),
-          const SizedBox(height: 6),
-          const Text('Cada punto de color indica un tipo de cuidado distinto. '
+          SizedBox(height: 6),
+          Text('Cada punto de color indica un tipo de cuidado distinto. '
               'El número pequeño indica cuántos registros hiciste ese día.',
-            style: TextStyle(color: Colors.black54, fontSize: 12, height: 1.35)),
-          const SizedBox(height: 14),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, height: 1.35)),
+          SizedBox(height: 14),
           Row(children: _weekdayNames.map((day) => Expanded(
-            child: Center(child: Text(day, style: const TextStyle(
-              color: Colors.black54, fontSize: 11,
+            child: Center(child: Text(day, style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11,
               fontWeight: FontWeight.w700))),
           )).toList()),
-          const SizedBox(height: 7),
+          SizedBox(height: 7),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -1166,7 +1177,7 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
                   child: Container(
                     decoration: BoxDecoration(
                       color: active ? _pale : (records.isEmpty
-                          ? const Color(0xFFF7F9F8) : const Color(0xFFF1F8F4)),
+                          ? Theme.of(context).colorScheme.surfaceContainerLow : Theme.of(context).colorScheme.primaryContainer),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: active ? _green : (isToday
@@ -1179,13 +1190,13 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
                         Text('$day', style: TextStyle(fontSize: 13,
                           fontWeight: active || isToday
                               ? FontWeight.w800 : FontWeight.w500,
-                          color: _darkGreen)),
-                        const SizedBox(height: 4),
+                          color: Theme.of(context).colorScheme.onSurface)),
+                        SizedBox(height: 4),
                         SizedBox(height: 7,
                           child: records.isEmpty
                               ? const SizedBox.shrink()
                               : _typeDots(records, maxDots: 5, diameter: 6.5)),
-                        const SizedBox(height: 3),
+                        SizedBox(height: 3),
                         Container(
                           constraints: const BoxConstraints(minWidth: 18),
                           padding: const EdgeInsets.symmetric(
@@ -1193,16 +1204,16 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
                           decoration: BoxDecoration(
                             color: records.isEmpty
                                 ? Colors.transparent
-                                : _darkGreen.withValues(alpha: 0.08),
+                                : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             records.isEmpty ? '' : '${records.length}',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.w800,
-                              color: _darkGreen,
+                              color: Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                         ),
@@ -1213,35 +1224,35 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
               );
             },
           ),
-          const SizedBox(height: 15),
+          SizedBox(height: 15),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(13),
             decoration: BoxDecoration(
-              color: const Color(0xFFF6F8F7),
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
               borderRadius: BorderRadius.circular(15),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('$selectedDay de ${_months[anchor.month - 1]} · '
                     '${_careCount(dayRecords.length)}',
-                  style: const TextStyle(fontSize: 14,
-                    fontWeight: FontWeight.w800, color: _darkGreen)),
-                const SizedBox(height: 8),
+                  style: TextStyle(fontSize: 14,
+                    fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
+                SizedBox(height: 8),
                 if (dayRecords.isEmpty)
-                  const Text('No registraste cuidados este día.',
-                    style: TextStyle(color: Colors.black54, fontSize: 12)),
+                  Text('No registraste cuidados este día.',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
                 if (selectedCounts.isNotEmpty) Wrap(
                   spacing: 6, runSpacing: 6,
                   children: selectedCounts.map((group) =>
                     _typeChip(group.key, group.value)).toList(),
                 ),
                 if (dayRecords.isNotEmpty) ...[
-                  const SizedBox(height: 9),
+                  SizedBox(height: 9),
                   TextButton.icon(
                     onPressed: () => _openDayDetails(calendarDate, dayRecords),
-                    icon: const Icon(Icons.list_alt_outlined, size: 18),
-                    label: const Text('Ver horarios y registros del día'),
+                    icon: Icon(Icons.list_alt_outlined, size: 18),
+                    label: Text('Ver horarios y registros del día'),
                   ),
                 ],
               ],
@@ -1255,14 +1266,14 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
   Future<void> deleteEntry(Map<String, dynamic> row) async {
     final ok = await showDialog<bool>(context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar registro'),
-        content: const Text('¿Eliminar este cuidado de tu historial? '
+        title: Text('Eliminar registro'),
+        content: Text('¿Eliminar este cuidado de tu historial? '
             'Esto no modifica el horario programado.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
+              child: Text('Cancelar')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Eliminar')),
+              child: Text('Eliminar')),
         ],
       ),
     );
@@ -1294,34 +1305,34 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
     }
     return Scaffold(
       appBar: AppBar(title: Text('Historial de ${widget.petName}')),
-      body: busy ? const Center(child: CircularProgressIndicator())
+      body: busy ? Center(child: CircularProgressIndicator())
           : RefreshIndicator(onRefresh: load,
             child: ListView(padding: const EdgeInsets.fromLTRB(18, 12, 18, 32),
               children: [
-                Card(color: _pale, margin: EdgeInsets.zero,
+                Card(color: Theme.of(context).colorScheme.primaryContainer, margin: EdgeInsets.zero,
                   child: Padding(padding: const EdgeInsets.all(17),
                     child: Row(children: [
-                      const CircleAvatar(radius: 22,
-                        backgroundColor: Colors.white,
-                        child: Icon(Icons.insights_outlined, color: _green)),
-                      const SizedBox(width: 12),
+                      CircleAvatar(radius: 22,
+                        backgroundColor: Theme.of(context).colorScheme.surface,
+                        child: Icon(Icons.insights_outlined, color: Theme.of(context).colorScheme.primary)),
+                      SizedBox(width: 12),
                       Expanded(child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('El día a día de ${widget.petName}',
-                            style: const TextStyle(fontSize: 18,
-                              fontWeight: FontWeight.w800, color: _darkGreen)),
-                          const SizedBox(height: 4),
-                          const Text('Consulta cada actividad, su frecuencia '
+                            style: TextStyle(fontSize: 18,
+                              fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
+                          SizedBox(height: 4),
+                          Text('Consulta cada actividad, su frecuencia '
                             'y cuándo la registraste.',
                             style: TextStyle(fontSize: 12,
-                              color: Colors.black54)),
+                              color: Theme.of(context).colorScheme.onSurfaceVariant)),
                         ],
                       )),
                     ]),
                   ),
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 SingleChildScrollView(scrollDirection: Axis.horizontal,
                   child: SegmentedButton<int>(
                     showSelectedIcon: false,
@@ -1338,36 +1349,36 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
                     }),
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Row(children: [
                   if (selectedPeriod != 3)
                     IconButton(onPressed: () => shift(-1),
-                        icon: const Icon(Icons.chevron_left),
+                        icon: Icon(Icons.chevron_left),
                         tooltip: 'Periodo anterior'),
                   Expanded(child: Text(periodTitle, textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 16,
+                      style: TextStyle(fontSize: 16,
                           fontWeight: FontWeight.bold))),
                   if (selectedPeriod != 3)
                     IconButton(onPressed: () => shift(1),
-                        icon: const Icon(Icons.chevron_right),
+                        icon: Icon(Icons.chevron_right),
                         tooltip: 'Periodo siguiente'),
                 ]),
-                const SizedBox(height: 12),
-                Card(color: _pale, child: Padding(
+                SizedBox(height: 12),
+                Card(color: Theme.of(context).colorScheme.primaryContainer, child: Padding(
                   padding: const EdgeInsets.all(18),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(children: [
-                        const Icon(Icons.verified_outlined, color: _green),
-                        const SizedBox(width: 8),
+                        Icon(Icons.verified_outlined, color: Theme.of(context).colorScheme.primary),
+                        SizedBox(width: 8),
                         Expanded(child: Text(_careCount(inPeriod.length),
-                          style: const TextStyle(fontSize: 20,
-                            fontWeight: FontWeight.w800, color: _darkGreen))),
+                          style: TextStyle(fontSize: 20,
+                            fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface))),
                       ]),
-                      const SizedBox(height: 5),
+                      SizedBox(height: 5),
                       Text('En ${days.length} días diferentes.'),
                       if (selectedPeriod == 0) ...[
-                        const SizedBox(height: 13),
+                        SizedBox(height: 13),
                         ...List.generate(7, (index) {
                           final day = periodStart.add(Duration(days: index));
                           final todayEntries = inPeriod.where((row) {
@@ -1380,14 +1391,14 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
                             child: Row(children: [
                               SizedBox(width: 46,
                                 child: Text(_weekdayNames[index],
-                                  style: const TextStyle(fontWeight: FontWeight.w700))),
+                                  style: TextStyle(fontWeight: FontWeight.w700))),
                               Expanded(child: Align(
                                 alignment: Alignment.centerLeft,
                                 child: _typeDots(todayEntries, maxDots: 6,
                                   diameter: 9))),
                               Text(_careCount(todayEntries.length),
-                                style: const TextStyle(fontSize: 12,
-                                  color: _darkGreen, fontWeight: FontWeight.w700)),
+                                style: TextStyle(fontSize: 12,
+                                  color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w700)),
                             ]),
                           );
                         }),
@@ -1396,20 +1407,20 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
                   ),
                 )),
                 if (selectedPeriod == 1) ...[
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   monthCalendar(inPeriod),
                 ],
-                const SizedBox(height: 17),
-                const Text('Cuidados por actividad',
+                SizedBox(height: 17),
+                Text('Cuidados por actividad',
                     style: TextStyle(fontSize: 18,
-                        fontWeight: FontWeight.w800, color: _darkGreen)),
-                const SizedBox(height: 4),
-                const Text('Cada actividad tiene un color; el número indica '
+                        fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
+                SizedBox(height: 4),
+                Text('Cada actividad tiene un color; el número indica '
                     'cuántas veces quedó registrada en el periodo.',
-                    style: TextStyle(color: Colors.black54, fontSize: 12)),
-                const SizedBox(height: 8),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
+                SizedBox(height: 8),
                 if (groupedTypes.isEmpty)
-                  const Card(child: Padding(padding: EdgeInsets.all(20),
+                  Card(child: Padding(padding: EdgeInsets.all(20),
                       child: Text('No hay registros en este periodo.'))),
                 ...groupedTypes.map((group) => Card(
                   margin: const EdgeInsets.only(bottom: 7),
@@ -1418,31 +1429,31 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
                       backgroundColor: _colorFor(group.key).withValues(alpha: 0.13),
                       child: _dot(_colorFor(group.key), size: 12)),
                     title: Text(_nameForType(group.key),
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                      style: TextStyle(fontWeight: FontWeight.w600)),
                     trailing: Text(_times(group.value),
-                      style: const TextStyle(fontWeight: FontWeight.w800,
-                        color: _darkGreen)),
+                      style: TextStyle(fontWeight: FontWeight.w800,
+                        color: Theme.of(context).colorScheme.onSurface)),
                   ),
                 )),
-                const SizedBox(height: 18),
-                const Text('Registro por día',
+                SizedBox(height: 18),
+                Text('Registro por día',
                     style: TextStyle(fontSize: 18,
                         fontWeight: FontWeight.bold)),
-                const SizedBox(height: 7),
+                SizedBox(height: 7),
                 ...byDay.entries.map((group) => Card(
                   child: Padding(padding: const EdgeInsets.all(12),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(children: [
-                          const Icon(Icons.event_note_outlined,
-                              size: 18, color: _green),
-                          const SizedBox(width: 7),
+                          Icon(Icons.event_note_outlined,
+                              size: 18, color: Theme.of(context).colorScheme.primary),
+                          SizedBox(width: 7),
                           Expanded(child: Text(group.key,
-                            style: const TextStyle(fontWeight: FontWeight.bold,
-                              color: _darkGreen))),
+                            style: TextStyle(fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.onSurface))),
                           Text(_careCount(group.value.length),
-                            style: const TextStyle(fontSize: 12,
-                              color: Colors.black54)),
+                            style: TextStyle(fontSize: 12,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant)),
                         ]),
                         ...group.value.map((row) {
                           return ListTile(
@@ -1452,7 +1463,7 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
                             subtitle: Text((row['time'] ?? '').toString()),
                             trailing: IconButton(
                               tooltip: 'Eliminar registro',
-                              icon: const Icon(Icons.delete_outline),
+                              icon: Icon(Icons.delete_outline),
                               onPressed: () => deleteEntry(row),
                             ),
                           );
@@ -1461,14 +1472,28 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
                     ),
                   ),
                 )),
-                const SizedBox(height: 14),
-                const Text('El historial muestra acciones registradas en PetCare. '
+                SizedBox(height: 14),
+                Text('El historial muestra acciones registradas en PetCare. '
                     'Una notificación no cuenta como cuidado realizado '
                     'hasta que marques el cuidado en la aplicación.',
-                    style: TextStyle(color: Colors.black54)),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
               ],
             ),
           ),
     );
   }
+}
+
+
+/// Mantiene las acciones sobre la barra de gestos / botones Android.
+Widget _petCareRemindersFooter(BuildContext context, Widget button) {
+  final bottomInset = MediaQuery.of(context).viewPadding.bottom;
+  final bottomSpace = bottomInset < 48 ? 72.0 : bottomInset + 16.0;
+  return ColoredBox(
+    color: Theme.of(context).colorScheme.surface,
+    child: Padding(
+      padding: EdgeInsets.fromLTRB(18, 12, 18, bottomSpace),
+      child: SizedBox(height: 54, width: double.infinity, child: button),
+    ),
+  );
 }
