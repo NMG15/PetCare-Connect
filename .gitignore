@@ -1,0 +1,83 @@
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.history/
+
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+
+android/.gradle/
+android/.kotlin/
+android/local.properties
+android/app/debug/
+android/app/profile/
+android/app/release/
+
+android/app/google-services.json
+android/key.properties
+android/app/*.jks
+android/app/*.keystore
+*.jks
+*.keystore
+
+*.apk
+*.aab
+*.apks
+*.symbols
+*.map.json
+
+# ========================================
+# PETCARE CONNECT - PROTECCION GIT
+# ========================================
+
+# Archivos privados
+key.properties
+*.jks
+*.keystore
+*.p12
+*.p8
+*.pem
+.env
+.env.*
+!.env.example
+**/*service-account*.json
+**/*serviceAccount*.json
+**/*firebase-adminsdk*.json
+
+# Configuracion Firebase Android
+android/app/google-services.json
+
+# Archivos generados
+.dart_tool/
+.firebase/
+build/
+**/build/
+dist/
+*.apk
+*.aab
+
+# Respaldos y temporales
+auth_pages_respaldo.txt
+*.bak
+*.log
+
+# Configuraciones locales
+.idea/
+.vscode/
+
+# Respaldos adicionales
+*.respaldo
