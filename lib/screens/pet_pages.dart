@@ -86,6 +86,93 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _showPetActions(Map<String, dynamic> pet) async {
+    final colors = Theme.of(context).colorScheme;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: colors.surfaceContainerLow,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          16, 0, 16, MediaQuery.viewPaddingOf(sheetContext).bottom + 50),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.70),
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 14),
+            child: Row(children: [
+              Icon(Icons.pets_rounded, color: colors.primary),
+              const SizedBox(width: 10),
+              Expanded(child: Text(
+                (pet['name'] ?? 'Mi mascota').toString(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800,
+                    color: colors.onSurface),
+              )),
+            ]),
+          ),
+          ListTile(
+            leading: Icon(Icons.edit_outlined, color: colors.primary),
+            title: const Text('Editar mascota'),
+            subtitle: const Text('Actualizar sus datos y fotografía'),
+            onTap: () => Navigator.pop(sheetContext, 'edit'),
+          ),
+          ListTile(
+            leading: Icon(Icons.notifications_active_outlined, color: colors.primary),
+            title: const Text('Horarios y recordatorios'),
+            subtitle: const Text('Gestionar los avisos de cuidado'),
+            onTap: () => Navigator.pop(sheetContext, 'reminders'),
+          ),
+          ListTile(
+            leading: Icon(Icons.history_outlined, color: colors.primary),
+            title: const Text('Historial de cuidados'),
+            subtitle: const Text('Consultar sus registros'),
+            onTap: () => Navigator.pop(sheetContext, 'history'),
+          ),
+          const Divider(height: 16),
+          ListTile(
+            leading: Icon(Icons.delete_outline, color: colors.error),
+            title: Text('Eliminar mascota',
+                style: TextStyle(color: colors.error, fontWeight: FontWeight.w700)),
+            onTap: () => Navigator.pop(sheetContext, 'delete'),
+          ),
+        ]),
+          ),
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    final petId = pet['id'].toString();
+    final petName = (pet['name'] ?? 'Mascota').toString();
+    final species = (pet['species'] ?? '').toString();
+    if (action == 'delete') {
+      await delete(pet);
+    } else if (action == 'edit') {
+      await Navigator.push(context, MaterialPageRoute(
+        builder: (_) => PetEditor(existing: pet),
+      ));
+      if (mounted) await reload();
+    } else if (action == 'reminders') {
+      await Navigator.push(context, MaterialPageRoute(
+        builder: (_) => PetRemindersPage(
+          petId: petId, petName: petName, species: species,
+        ),
+      ));
+    } else if (action == 'history') {
+      await Navigator.push(context, MaterialPageRoute(
+        builder: (_) => PetHistoryPage(petId: petId, petName: petName),
+      ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
       appBar: AppBar(
@@ -297,50 +384,12 @@ class _HomePageState extends State<HomePage> {
                                               style: TextStyle(
                                                   color: adaptiveMuted(context)))
                                         ])),
-                                    PopupMenuButton<String>(
-                                        tooltip: 'Acciones de la mascota',
-                                        onSelected: (v) async {
-                                          final petId = pet['id'].toString();
-                                          final petName = (pet['name'] ?? 'Mascota').toString();
-                                          final species = (pet['species'] ?? '').toString();
-                                          if (v == 'delete') {
-                                            await delete(pet);
-                                          } else if (v == 'edit') {
-                                            if (!mounted) return;
-                                            await Navigator.push(context, MaterialPageRoute(
-                                              builder: (_) => PetEditor(existing: pet),
-                                            ));
-                                            if (mounted) await reload();
-                                          } else if (v == 'reminders') {
-                                            await Navigator.push(context, MaterialPageRoute(
-                                              builder: (_) => PetRemindersPage(
-                                                petId: petId, petName: petName, species: species,
-                                              ),
-                                            ));
-                                          } else if (v == 'history') {
-                                            await Navigator.push(context, MaterialPageRoute(
-                                              builder: (_) => PetHistoryPage(
-                                                petId: petId, petName: petName,
-                                              ),
-                                            ));
-                                          }
-                                        },
-                                        itemBuilder: (_) => [
-                                          PopupMenuItem(value: 'edit', child: Row(children: [
-                                            Icon(Icons.edit_outlined), SizedBox(width: 12), Text('Editar mascota'),
-                                          ])),
-                                          PopupMenuItem(value: 'reminders', child: Row(children: [
-                                            Icon(Icons.notifications_active_outlined), SizedBox(width: 12), Text('Recordatorios'),
-                                          ])),
-                                          PopupMenuItem(value: 'history', child: Row(children: [
-                                            Icon(Icons.history_outlined), SizedBox(width: 12), Text('Historial de cuidados'),
-                                          ])),
-                                          const PopupMenuDivider(),
-                                          PopupMenuItem(value: 'delete', child: Row(children: [
-                                            Icon(Icons.delete_outline, color: Colors.redAccent),
-                                            SizedBox(width: 12), Text('Eliminar mascota'),
-                                          ])),
-                                        ]),
+                                    IconButton(
+                                      tooltip: 'Opciones de ${pet['name']}',
+                                      onPressed: () => _showPetActions(pet),
+                                      icon: const Icon(Icons.more_vert_rounded),
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
                                     Icon(Icons.chevron_right,
                                         color: Theme.of(context).colorScheme.primary)
                                   ])))))
@@ -609,6 +658,25 @@ class _PetEditorState extends State<PetEditor> {
               initialValue: customCoat
                   ? 'Otro (especificar)'
                   : petCoatOptions(species).contains(coat.text) ? coat.text : null,
+              // Cuando aún no se ha elegido una opción, muestra una instrucción
+              // legible en ambos temas (antes el desplegable se veía vacío).
+              hint: Text(
+                species == 'Ave'
+                    ? 'Selecciona el plumaje'
+                    : (species == 'Pez' || species == 'Tortuga')
+                        ? 'Selecciona una característica'
+                        : 'Selecciona el pelaje',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 16,
+                ),
+              ),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontSize: 16,
+              ),
+              dropdownColor: Theme.of(context).colorScheme.surfaceContainerLow,
+              iconEnabledColor: Theme.of(context).colorScheme.onSurfaceVariant,
               decoration: const InputDecoration(prefixIcon: Icon(Icons.tune)),
               items: [...petCoatOptions(species), 'Otro (especificar)']
                   .map((value) => DropdownMenuItem(value: value, child: Text(value)))
@@ -866,9 +934,20 @@ class _PetDetailState extends State<PetDetail> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Organiza sus cuidados',
-                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                    SizedBox(height: 8),
+                    Row(children: [
+                      Icon(Icons.health_and_safety_outlined,
+                          color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 9),
+                      Expanded(child: Text('Su rutina de cuidados',
+                          style: TextStyle(fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: adaptiveInk(context)))),
+                    ]),
+                    const SizedBox(height: 5),
+                    Text('Horarios, historial y cuidados a su medida.',
+                        style: TextStyle(fontSize: 12,
+                            color: adaptiveMuted(context))),
+                    const SizedBox(height: 13),
                     FilledButton.icon(
                       onPressed: () async {
                         await Navigator.push(context, MaterialPageRoute(
@@ -895,7 +974,7 @@ class _PetDetailState extends State<PetDetail> {
                         await load();
                       },
                       icon: Icon(Icons.calendar_month_outlined),
-                      label: Text('Historial: semana, mes y años'),
+                      label: Text('Ver historial de cuidados'),
                     ),
                     SizedBox(height: 7),
                     OutlinedButton.icon(
@@ -910,7 +989,7 @@ class _PetDetailState extends State<PetDetail> {
                         await load();
                       },
                       icon: Icon(Icons.tune_outlined),
-                      label: Text('Elegir qué cuidados mostrar'),
+                      label: Text('Personalizar cuidados'),
                     ),
                   ],
                 ),

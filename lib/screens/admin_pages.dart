@@ -1052,6 +1052,28 @@ class _AdminPetEditorPageState extends State<AdminPetEditorPage> {
   }
 }
 
+
+/// Panel con superficie Material propia para ListTile y SwitchListTile.
+/// Evita ocultar los efectos de selección detrás de un DecoratedBox.
+Widget _adminCarePanel(BuildContext context, List<Widget> children) {
+  final scheme = Theme.of(context).colorScheme;
+  return Material(
+    color: scheme.surface,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(22),
+      side: BorderSide(color: scheme.outlineVariant),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Padding(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    ),
+  );
+}
+
 class AdminCareCatalogPage extends StatefulWidget {
   const AdminCareCatalogPage({super.key});
 
@@ -1219,306 +1241,273 @@ class _AdminCareCatalogPageState extends State<AdminCareCatalogPage> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final shown = items.where((row) {
       final active = row['active'] != false;
-
       if (speciesFilter != 'Todas') {
         final species = row['species'];
-        if (species is! List || !species.contains(speciesFilter)) {
-          return false;
-        }
+        if (species is! List || !species.contains(speciesFilter)) return false;
       }
-
-      if (statusFilter == 'Visibles' && !active) {
-        return false;
-      }
-      if (statusFilter == 'Ocultos' && active) {
-        return false;
-      }
-
+      if (statusFilter == 'Visibles' && !active) return false;
+      if (statusFilter == 'Ocultos' && active) return false;
       return true;
     }).toList();
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'Tipos de cuidado',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Tipos de cuidado',
+            style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: loading
-          ? Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: load,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(18, 12, 18, 36),
-                children: [
-                  Card(
-                    color: adaptivePale(context),
-                    child: Padding(
-                      padding: EdgeInsets.all(18),
-                      child: Column(
+          ? const Center(child: CircularProgressIndicator())
+          : SafeArea(
+              bottom: true,
+              child: RefreshIndicator(
+                onRefresh: load,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 100),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: scheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Tu catálogo de cuidados',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: adaptiveInk(context),
+                          Icon(Icons.medical_services_outlined,
+                              color: scheme.onPrimaryContainer, size: 27),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Catálogo de cuidados',
+                                    style: TextStyle(fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                        color: scheme.onPrimaryContainer)),
+                                const SizedBox(height: 5),
+                                Text('Crea, edita y organiza las opciones que verán las personas.',
+                                    style: TextStyle(
+                                      height: 1.3,
+                                      color: scheme.onPrimaryContainer,
+                                    )),
+                              ],
                             ),
-                          ),
-                          SizedBox(height: 7),
-                          Text(
-                            'Crea, edita u oculta los cuidados disponibles.',
-                            style: TextStyle(height: 1.35),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                  SizedBox(height: 12),
-                  SizedBox(
-                    height: 54,
-                    child: FilledButton(
-                      onPressed: createNew,
-                      child: Row(mainAxisAlignment: MainAxisAlignment.center,
-                        children: [Icon(Icons.add_circle_outline), SizedBox(width: 10),
-                          Text('Crear nuevo cuidado')]),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      height: 54,
+                      child: FilledButton.icon(
+                        onPressed: createNew,
+                        icon: const Icon(Icons.add_circle_outline),
+                        label: const Text('Crear nuevo cuidado'),
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 22),
-                  Text(
-                    'Explorar y filtrar',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: adaptiveInk(context),
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    initialValue: speciesFilter,
-                    decoration: InputDecoration(
-                      labelText: 'Especie',
-                    ),
-                    items: ['Todas', ...allPetSpecies]
-                        .map(
-                          (species) => DropdownMenuItem(
-                            value: species,
-                            child: Text(
-                              species == 'Todas'
-                                  ? 'Todas las especies'
-                                  : '${emojiFor(species)}  $species',
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => speciesFilter = value);
-                      }
-                    },
-                  ),
-                  SizedBox(height: 10),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SegmentedButton<String>(
-                      showSelectedIcon: false,
-                      segments: const [
-                        ButtonSegment<String>(
-                          value: 'Todos',
-                          label: Text('Todos'),
-                        ),
-                        ButtonSegment<String>(
-                          value: 'Visibles',
-                          label: Text('Visibles'),
-                        ),
-                        ButtonSegment<String>(
-                          value: 'Ocultos',
-                          label: Text('Ocultos'),
-                        ),
-                      ],
-                      selected: {statusFilter},
-                      onSelectionChanged: (selection) {
-                        setState(() => statusFilter = selection.first);
-                      },
-                    ),
-                  ),
-                  SizedBox(height: 22),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Cuidados existentes',
+                    const SizedBox(height: 18),
+                    _adminCarePanel(context, [
+                      Text('Buscar por especie y estado',
                           style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: adaptiveInk(context),
-                          ),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: scheme.onSurface,
+                          )),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        initialValue: speciesFilter,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Especie',
+                        ),
+                        items: ['Todas', ...allPetSpecies]
+                            .map((species) => DropdownMenuItem<String>(
+                                  value: species,
+                                  child: Text(species == 'Todas'
+                                      ? 'Todas las especies'
+                                      : '${emojiFor(species)}  $species',
+                                      overflow: TextOverflow.ellipsis),
+                                ))
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            setState(() => speciesFilter = value);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: SegmentedButton<String>(
+                          showSelectedIcon: true,
+                          segments: const [
+                            ButtonSegment(value: 'Todos', label: Text('Todos')),
+                            ButtonSegment(value: 'Visibles', label: Text('Visibles')),
+                            ButtonSegment(value: 'Ocultos', label: Text('Ocultos')),
+                          ],
+                          selected: {statusFilter},
+                          onSelectionChanged: (selection) {
+                            setState(() => statusFilter = selection.first);
+                          },
                         ),
                       ),
-                      Text(
-                        '${shown.length}',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontWeight: FontWeight.bold,
+                    ]),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text('Cuidados existentes',
+                              style: TextStyle(fontSize: 19,
+                                fontWeight: FontWeight.w800,
+                                color: scheme.onSurface)),
                         ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 10),
-                  if (shown.isEmpty)
-                    Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(22),
-                        child: Text(
-                          'No hay cuidados con estos filtros. '
-                          'Puedes cambiar el filtro o agregar uno nuevo.',
-                        ),
-                      ),
+                        Text('${shown.length} de ${items.length}',
+                            style: TextStyle(fontWeight: FontWeight.w700,
+                                color: scheme.primary)),
+                      ],
                     ),
-                  ...shown.map((row) {
-                    final active = row['active'] != false;
-                    final description =
-                        (row['description'] ?? '').toString().trim();
-
-                    return Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(17),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: active
-                                        ? Theme.of(context).colorScheme.secondaryContainer
-                                        : Theme.of(context).colorScheme.surfaceContainerHighest,
-                                    borderRadius: BorderRadius.circular(14),
+                    const SizedBox(height: 12),
+                    if (shown.isEmpty)
+                      _adminCarePanel(context, [
+                        Text('No hay cuidados con estos filtros.',
+                            style: TextStyle(color: scheme.onSurface)),
+                        const SizedBox(height: 6),
+                        Text('Cambia los filtros o crea una opción nueva.',
+                            style: TextStyle(color: scheme.onSurfaceVariant)),
+                      ]),
+                    ...shown.map((row) {
+                      final active = row['active'] != false;
+                      final detail =
+                          (row['description'] ?? '').toString().trim();
+                      final cardColor = scheme.surface;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: cardColor,
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(color: scheme.outlineVariant),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    width: 46,
+                                    height: 46,
+                                    decoration: BoxDecoration(
+                                      color: active ? scheme.primaryContainer
+                                          : scheme.surfaceContainerHighest,
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: Icon(careTypeIcon(row),
+                                      color: active ? scheme.onPrimaryContainer
+                                          : scheme.onSurfaceVariant),
                                   ),
-                                  child: Icon(
-                                    careTypeIcon(row),
-                                    color: active ? Theme.of(context).colorScheme.onSecondaryContainer
-                                        : adaptiveMuted(context),
-                                  ),
-                                ),
-                                SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        careTypeLabel(row),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: adaptiveInk(context),
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      SizedBox(height: 5),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 9,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: active
-                                              ? Theme.of(context).colorScheme.secondaryContainer
-                                              : Theme.of(context).colorScheme.surfaceContainerHighest,
-                                          borderRadius:
-                                              BorderRadius.circular(20),
-                                        ),
-                                        child: Text(
-                                          active
-                                              ? 'VISIBLE PARA USUARIOS'
-                                              : 'OCULTO PARA USUARIOS',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: active
-                                                ? Theme.of(context).colorScheme.onSecondaryContainer
-                                                : adaptiveMuted(context),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(careTypeLabel(row),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(fontSize: 17,
+                                                fontWeight: FontWeight.w800,
+                                                color: scheme.onSurface)),
+                                        const SizedBox(height: 7),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 5),
+                                          decoration: BoxDecoration(
+                                            color: active ? scheme.primaryContainer
+                                                : scheme.surfaceContainerHighest,
+                                            borderRadius: BorderRadius.circular(15),
                                           ),
+                                          child: Text(active ? 'Visible' : 'Oculto',
+                                              style: TextStyle(fontSize: 12,
+                                                fontWeight: FontWeight.w700,
+                                                color: active ? scheme.onPrimaryContainer
+                                                    : scheme.onSurfaceVariant)),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (description.isNotEmpty) ...[
-                              SizedBox(height: 12),
-                              Text(
-                                description,
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: adaptiveMuted(context),
-                                  height: 1.3,
-                                ),
-                              ),
-                            ],
-                            SizedBox(height: 10),
-                            Text(
-                              'Para: ${speciesText(row)}',
-                              style: TextStyle(
-                                color: adaptiveMuted(context),
-                                fontSize: 13,
-                              ),
-                            ),
-                            Divider(height: 26),
-                            SizedBox(
-                              width: double.infinity,
-                              child: FilledButton.tonal(
-                                onPressed: () => edit(row),
-                                child: Text('Editar este cuidado'),
-                              ),
-                            ),
-                            SizedBox(height: 7),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () => duplicate(row),
-                                    child: Text('Duplicar'),
-                                  ),
-                                ),
-                                SizedBox(width: 8),
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () => changeActive(row),
-                                    child: Text(
-                                      active ? 'Ocultar' : 'Mostrar',
+                                      ],
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(
-                              width: double.infinity,
-                              child: TextButton(
-                                onPressed: () => remove(row),
-                                child: Text('Eliminar'),
+                                ],
                               ),
-                            ),
-                          ],
+                              if (detail.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                Text(detail, maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(color: scheme.onSurfaceVariant)),
+                              ],
+                              const SizedBox(height: 10),
+                              Text('Especies: ${speciesText(row)}',
+                                  style: TextStyle(fontSize: 13,
+                                      color: scheme.onSurfaceVariant)),
+                              Divider(height: 24, color: scheme.outlineVariant),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: FilledButton.tonalIcon(
+                                      onPressed: () => edit(row),
+                                      icon: const Icon(Icons.edit_outlined, size: 18),
+                                      label: const Text('Editar'),
+                                      style: FilledButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: () => duplicate(row),
+                                      icon: const Icon(Icons.copy_outlined, size: 18),
+                                      label: const Text('Duplicar'),
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  TextButton.icon(
+                                    onPressed: () => changeActive(row),
+                                    icon: Icon(active ? Icons.visibility_off_outlined
+                                        : Icons.visibility_outlined, size: 19),
+                                    label: Text(active ? 'Ocultar' : 'Mostrar'),
+                                  ),
+                                  TextButton.icon(
+                                    onPressed: () => remove(row),
+                                    icon: const Icon(Icons.delete_outline, size: 19),
+                                    label: const Text('Eliminar'),
+                                    style: TextButton.styleFrom(
+                                        foregroundColor: scheme.error),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    );
-                  }),
-                ],
+                      );
+                    }),
+                  ],
+                ),
               ),
             ),
     );
   }
+
 }
 
 class AdminCareTypeEditorPage extends StatefulWidget {
@@ -1645,253 +1634,270 @@ class _AdminCareTypeEditorPageState
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final modeTitle = editing
         ? 'Editar cuidado'
-        : duplicating
-            ? 'Duplicar cuidado'
-            : 'Nuevo cuidado';
-
+        : duplicating ? 'Duplicar cuidado' : 'Nuevo cuidado';
     final explanation = editing
-        ? 'Editando: ${careTypeLabel(widget.existing!)}'
+        ? 'Estás editando «${careTypeLabel(widget.existing!)}».'
         : duplicating
-            ? 'Nueva copia de ${careTypeLabel(widget.copyFrom!)}'
-            : 'Crea un cuidado para el catálogo.';
-
-    final previewTitle =
-        label.text.trim().isEmpty
-            ? 'Nombre del cuidado'
-            : label.text.trim();
-
-    final previewDescription =
-        description.text.trim();
+            ? 'Crearás una copia de «${careTypeLabel(widget.copyFrom!)}».'
+            : 'Personaliza la información del cuidado.';
+    final previewTitle = label.text.trim().isEmpty
+        ? 'Nombre del cuidado' : label.text.trim();
+    final previewDescription = description.text.trim();
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          modeTitle,
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: Text(modeTitle,
+            style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
-        children: [
-          Card(
-            color: adaptivePale(context),
-            child: Padding(
-              padding: const EdgeInsets.all(17),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start,
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
                 children: [
-                  CircleAvatar(backgroundColor: Theme.of(context).colorScheme.surface,
-                    child: Icon(editing ? Icons.edit_outlined
-                        : duplicating ? Icons.copy
-                            : Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary)),
-                  SizedBox(width: 12),
-                  Expanded(child: Text(
-                    explanation,
-                    style: TextStyle(
-                      height: 1.35,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  )),
+                  Icon(editing ? Icons.edit_outlined
+                      : duplicating ? Icons.copy_outlined
+                          : Icons.add_circle_outline,
+                    color: scheme.onPrimaryContainer),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(explanation,
+                      style: TextStyle(height: 1.3,
+                          fontWeight: FontWeight.w600,
+                          color: scheme.onPrimaryContainer)),
+                  ),
                 ],
               ),
             ),
-          ),
-          SizedBox(height: 20),
-          Text(
-            '1. Nombre del cuidado',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: adaptiveInk(context),
-            ),
-          ),
-          SizedBox(height: 9),
-          TextField(
-            controller: label,
-            textCapitalization: TextCapitalization.sentences,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              hintText: 'Nombre del cuidado',
-            ),
-          ),
-          SizedBox(height: 14),
-          Text('Descripción (opcional)', style: TextStyle(
-            color: adaptiveMuted(context), fontWeight: FontWeight.w600)),
-          SizedBox(height: 7),
-          TextField(
-            controller: description,
-            textCapitalization: TextCapitalization.sentences,
-            minLines: 2,
-            maxLines: 4,
-            onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(
-              hintText:
-                  'Describe brevemente este cuidado',
-              alignLabelWithHint: true,
-            ),
-          ),
-          SizedBox(height: 22),
-          Text(
-            '2. ¿Para qué mascotas aparece?',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: adaptiveInk(context),
-            ),
-          ),
-          SizedBox(height: 9),
-          SwitchListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12),
-            tileColor: Theme.of(context).colorScheme.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: Text('Todas las especies'),
-            subtitle: Text(
-              'Desactívalo para elegir especies específicas.',
-            ),
-            value: allSpecies,
-            onChanged: (value) {
-              setState(() => allSpecies = value);
-            },
-          ),
-          if (!allSpecies) ...[
-            SizedBox(height: 10),
-            Wrap(
-              spacing: 7,
-              runSpacing: 5,
-              children: allPetSpecies.map((species) {
-                return FilterChip(
-                  label: Text('${emojiFor(species)}  $species'),
-                  selected:
-                      selectedSpecies.contains(species),
-                  onSelected: (selected) {
-                    setState(() {
-                      if (selected) {
-                        selectedSpecies.add(species);
-                      } else {
-                        selectedSpecies.remove(species);
-                      }
-                    });
-                  },
-                );
-              }).toList(),
-            ),
-          ],
-          SizedBox(height: 22),
-          Text(
-            '3. Visibilidad',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: adaptiveInk(context),
-            ),
-          ),
-          SizedBox(height: 9),
-          SwitchListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12),
-            tileColor: Theme.of(context).colorScheme.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: Text('Mostrar a los usuarios'),
-            subtitle: Text(
-              'Desactivar en el catálogo (conserva el historial).',
-            ),
-            value: active,
-            onChanged: (value) {
-              setState(() => active = value);
-            },
-          ),
-          SizedBox(height: 12),
-          ExpansionTile(
-            tilePadding:
-                const EdgeInsets.symmetric(horizontal: 12),
-            collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            collapsedShape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: Text('Icono del cuidado'),
-            children: [
-              Padding(
-                padding:
-                    const EdgeInsets.fromLTRB(12, 0, 12, 16),
-                child: DropdownButtonFormField<String>(
-                  initialValue: icon,
-                  decoration:
-                      InputDecoration(labelText: 'Icono'),
-                  items: careIconChoices.entries
-                      .map(
-                        (entry) => DropdownMenuItem(
+            const SizedBox(height: 16),
+            _adminCarePanel(context, [
+              Text('1. Información del cuidado',
+                  style: TextStyle(fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: scheme.onSurface)),
+              const SizedBox(height: 15),
+              Text('Nombre',
+                  style: TextStyle(fontWeight: FontWeight.w700,
+                      color: scheme.onSurface)),
+              const SizedBox(height: 7),
+              TextField(
+                controller: label,
+                textCapitalization: TextCapitalization.sentences,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  hintText: 'Ej. Medicamento o Paseo',
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('Descripción (opcional)',
+                  style: TextStyle(fontWeight: FontWeight.w700,
+                      color: scheme.onSurface)),
+              const SizedBox(height: 7),
+              TextField(
+                controller: description,
+                textCapitalization: TextCapitalization.sentences,
+                minLines: 2,
+                maxLines: 4,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  hintText: 'Describe brevemente este cuidado',
+                  alignLabelWithHint: true,
+                ),
+              ),
+            ]),
+            const SizedBox(height: 14),
+            _adminCarePanel(context, [
+              Text('2. Especies disponibles',
+                  style: TextStyle(fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: scheme.onSurface)),
+              const SizedBox(height: 9),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Todas las especies'),
+                subtitle: const Text(
+                  'Actívalo para incluirlas todas.',
+                ),
+                value: allSpecies,
+                onChanged: (value) => setState(() => allSpecies = value),
+              ),
+              if (allSpecies) ...[
+                const SizedBox(height: 8),
+                Text('Disponible para todas las mascotas.',
+                    style: TextStyle(fontSize: 13,
+                        color: scheme.onSurfaceVariant)),
+              ] else ...[
+                const SizedBox(height: 8),
+                Text('Selecciona las especies que verán este cuidado:',
+                    style: TextStyle(fontSize: 13,
+                        color: scheme.onSurfaceVariant)),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
+                  children: allPetSpecies.map((species) {
+                    return FilterChip(
+                      selected: selectedSpecies.contains(species),
+                      showCheckmark: true,
+                      label: Text('${emojiFor(species)}  $species'),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            selectedSpecies.add(species);
+                          } else {
+                            selectedSpecies.remove(species);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 10,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => setState(() {
+                        selectedSpecies.addAll(allPetSpecies);
+                      }),
+                      icon: const Icon(Icons.done_all_outlined),
+                      label: const Text('Seleccionar todas'),
+                    ),
+                    TextButton(
+                      onPressed: () => setState(selectedSpecies.clear),
+                      child: const Text('Limpiar selección'),
+                    ),
+                  ],
+                ),
+                Text('${selectedSpecies.length} de ${allPetSpecies.length} especies seleccionadas',
+                    style: TextStyle(fontSize: 12,
+                        color: scheme.onSurfaceVariant)),
+              ],
+            ]),
+            const SizedBox(height: 14),
+            _adminCarePanel(context, [
+              Text('3. Visibilidad',
+                  style: TextStyle(fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: scheme.onSurface)),
+              const SizedBox(height: 6),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Mostrar a los usuarios'),
+                subtitle: const Text(
+                  'Si lo ocultas, el historial anterior se conserva.',
+                ),
+                value: active,
+                onChanged: (value) => setState(() => active = value),
+              ),
+            ]),
+            const SizedBox(height: 14),
+            _adminCarePanel(context, [
+              Text('4. Icono del cuidado',
+                  style: TextStyle(fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: scheme.onSurface)),
+              const SizedBox(height: 6),
+              Text('Elige cómo se identificará este cuidado.',
+                  style: TextStyle(fontSize: 13,
+                      color: scheme.onSurfaceVariant)),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: icon,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  hintText: 'Selecciona un icono',
+                ),
+                items: careIconChoices.entries
+                    .map((entry) => DropdownMenuItem<String>(
                           value: entry.key,
                           child: Row(
                             children: [
-                              Icon(
-                                careIcon(entry.key),
-                                size: 20,
-                              ),
-                              SizedBox(width: 10),
-                              Text(entry.value),
+                              Icon(careIcon(entry.key), size: 22,
+                                  color: scheme.primary),
+                              const SizedBox(width: 12),
+                              Expanded(child: Text(entry.value,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(color: scheme.onSurface))),
                             ],
                           ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => icon = value);
-                    }
-                  },
+                        ))
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) setState(() => icon = value);
+                },
+              ),
+            ]),
+            const SizedBox(height: 14),
+            _adminCarePanel(context, [
+              Text('Vista previa',
+                  style: TextStyle(fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: scheme.onSurface)),
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: scheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Icon(careIcon(icon),
+                        color: scheme.onPrimaryContainer),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(previewTitle,
+                          softWrap: true,
+                          style: TextStyle(fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: scheme.onSurface)),
+                        if (previewDescription.isNotEmpty) ...[
+                          const SizedBox(height: 5),
+                          Text(previewDescription,
+                            style: TextStyle(color: scheme.onSurfaceVariant)),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: active ? scheme.primaryContainer
+                        : scheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(active ? 'Visible para usuarios' : 'Oculto para usuarios',
+                    style: TextStyle(fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: active ? scheme.onPrimaryContainer
+                            : scheme.onSurfaceVariant)),
                 ),
               ),
-            ],
-          ),
-          SizedBox(height: 22),
-          Text(
-            'Vista previa',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: adaptiveInk(context),
-            ),
-          ),
-          SizedBox(height: 9),
-          Card(
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: adaptivePale(context),
-                child: Icon(
-                  careIcon(icon),
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              title: Text(
-                previewTitle,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              subtitle: previewDescription.isEmpty
-                  ? const SizedBox.shrink()
-                  : Text(previewDescription),
-              trailing: Text(
-                active ? 'Visible' : 'Oculto',
-                style: TextStyle(
-                  color: active ? Theme.of(context).colorScheme.primary : adaptiveMuted(context),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-        ],
+            ]),
+          ],
+        ),
       ),
       bottomNavigationBar: petCareActionFooter(
         context,
@@ -1903,6 +1909,7 @@ class _AdminCareTypeEditorPageState
       ),
     );
   }
+
 }
 
 class AdminCareRecordEditorPage extends StatefulWidget {

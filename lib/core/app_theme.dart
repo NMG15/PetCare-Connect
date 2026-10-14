@@ -11,16 +11,17 @@ ThemeData buildPetCareTheme(Brightness brightness) {
   final scheme = ColorScheme.fromSeed(
     seedColor: green,
     brightness: brightness,
-    surface: dark ? const Color(0xFF121B17) : cream,
+    surface: dark ? const Color(0xFF0D140F) : cream,
   ).copyWith(
-    primary: dark ? const Color(0xFF74DEAB) : green,
+    primary: dark ? const Color(0xFF8BE7B3) : green,
     onPrimary: dark ? const Color(0xFF06281A) : Colors.white,
-    primaryContainer: dark ? const Color(0xFF214435) : const Color(0xFFE3F4E9),
+    primaryContainer: dark ? const Color(0xFF254D37) : const Color(0xFFD9F1E2),
     onPrimaryContainer: dark ? const Color(0xFFD7FFE8) : const Color(0xFF173A2B),
     secondaryContainer: dark ? const Color(0xFF2A4437) : const Color(0xFFE5F2E9),
     onSecondaryContainer: dark ? const Color(0xFFE2FFF0) : const Color(0xFF173C2D),
   );
-  final surface = dark ? const Color(0xFF202C27) : Colors.white;
+  final surface = dark ? const Color(0xFF19261E) : Colors.white;
+  final selectedChip = dark ? const Color(0xFF276245) : const Color(0xFFBFE7D0);
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
@@ -62,6 +63,39 @@ ThemeData buildPetCareTheme(Brightness brightness) {
         borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide(color: scheme.primary, width: 1.5),
       ),
+    ),
+    // Los filtros y colores seleccionados deben distinguirse en ambos modos.
+    chipTheme: ChipThemeData(
+      backgroundColor: surface,
+      selectedColor: selectedChip,
+      checkmarkColor: dark ? const Color(0xFFE9FFF2) : const Color(0xFF174730),
+      labelStyle: TextStyle(
+        color: scheme.onSurface,
+        fontWeight: FontWeight.w600,
+      ),
+      side: BorderSide(color: scheme.outlineVariant, width: 1),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
+    ),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) =>
+          states.contains(WidgetState.selected) ? selectedChip : surface),
+        foregroundColor: WidgetStateProperty.all(scheme.onSurface),
+        side: WidgetStateProperty.all(
+          BorderSide(color: scheme.outlineVariant, width: 1)),
+      ),
+    ),
+    timePickerTheme: TimePickerThemeData(
+      backgroundColor: scheme.surfaceContainerLow,
+      dialBackgroundColor: scheme.surfaceContainerHighest,
+      dialHandColor: scheme.primary,
+      dialTextColor: WidgetStateColor.resolveWith((states) =>
+        states.contains(WidgetState.selected)
+            ? scheme.onPrimary : scheme.onSurface),
+      hourMinuteColor: scheme.primaryContainer,
+      hourMinuteTextColor: scheme.onPrimaryContainer,
+      entryModeIconColor: scheme.primary,
+      helpTextStyle: TextStyle(color: scheme.onSurface, fontWeight: FontWeight.w700),
     ),
     cardTheme: CardThemeData(
       color: surface,

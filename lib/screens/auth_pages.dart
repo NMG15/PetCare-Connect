@@ -114,7 +114,7 @@ class _AuthPageState extends State<AuthPage> {
         message.contains('missingplugin')) {
       return 'No se pudo iniciar el servicio de $provider en este dispositivo.';
     }
-    return 'No se pudo continuar con $provider. Revisa el diagnóstico en la app.';
+    return 'No se pudo continuar con $provider. Inténtalo de nuevo.';
   }
 
   String redactDiagnostic(String message) => message
@@ -127,43 +127,12 @@ class _AuthPageState extends State<AuthPage> {
         (match) => '${match.group(1)}[oculto]',
       );
 
+  // No interrumpir el inicio de sesión con un cuadro de diagnóstico técnico.
+  // La configuración de Meta sigue siendo necesaria para habilitar Facebook.
   Future<void> showFacebookDiagnostic(String detail) async {
     if (!mounted) return;
-    final safeDetail = redactDiagnostic(detail);
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        icon: Icon(Icons.info_outline, color: Theme.of(context).colorScheme.primary, size: 34),
-        title: Text('Diagnóstico de Facebook'),
-        content: SingleChildScrollView(
-          child: Column(mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Este informe ayuda a distinguir los errores de la APK '
-                  'de los bloqueos de acceso de Meta. Si Facebook muestra '
-                  '«La app no está activa», no se soluciona cambiando una API Key.'),
-              SizedBox(height: 14),
-              SelectableText(safeDetail, style: TextStyle(fontSize: 13)),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton.icon(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: safeDetail));
-              if (dialogContext.mounted) Navigator.pop(dialogContext);
-              msg('Diagnóstico copiado. Revísalo antes de compartirlo.');
-            },
-            icon: Icon(Icons.copy),
-            label: Text('Copiar diagnóstico'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Entendido'),
-          ),
-        ],
-      ),
-    );
+    msg('No se pudo iniciar sesión con Facebook por ahora. '
+        'Puedes usar tu correo o Google mientras se revisa el acceso.');
   }
 
 
@@ -214,7 +183,7 @@ class _AuthPageState extends State<AuthPage> {
         'invalid-credential' => 'Correo o contraseña incorrectos.',
         'user-not-found' => 'No existe una cuenta con ese correo.',
         'wrong-password' => 'Correo o contraseña incorrectos.',
-        _ => 'No se pudo iniciar sesión. ${e.message ?? ''}',
+        _ => 'No se pudo iniciar sesión. Comprueba tus datos e inténtalo de nuevo.',
       };
       msg(message);
     } on FirebaseException catch (e) {
@@ -246,11 +215,10 @@ class _AuthPageState extends State<AuthPage> {
     } on GoogleSignInException catch (e) {
       if (mounted && e.code != GoogleSignInExceptionCode.canceled) {
         debugPrint('GOOGLE_SIGN_IN_ERROR: ${e.code}');
-        msg('Google no pudo iniciar sesión (${e.code.name}). '
-          'Comprueba Google Play Services y las firmas SHA en Firebase.');
+        msg('No pudimos iniciar sesión con Google. Comprueba los servicios de Google y vuelve a intentarlo.');
       }
-    } on FirebaseAuthException catch (e) {
-      msg('Firebase no pudo iniciar sesión con Google: ${e.message ?? e.code}');
+    } on FirebaseAuthException {
+      msg('No se pudo iniciar sesión con Google por ahora. Inténtalo de nuevo.');
     } catch (e) {
       debugPrint('GOOGLE_UNEXPECTED_ERROR: ${e.runtimeType}: $e');
       msg(socialErrorMessage(e, 'Google'));
@@ -274,16 +242,7 @@ class _AuthPageState extends State<AuthPage> {
 
       final sdkMessage = (result.message ?? '').trim();
       if (result.status == LoginStatus.cancelled) {
-        if (sdkMessage.isEmpty) {
-          msg('Acceso con Facebook cancelado. Si viste «La app no está activa», '
-              'es un bloqueo de Meta y debes revisar su estado de acceso.');
-        } else {
-          await showFacebookDiagnostic(
-            'Inicio cancelado por Facebook.\n'
-            'Mensaje: $sdkMessage\n'
-            'Método: navegador (webOnly)',
-          );
-        }
+        // Cerrar el navegador no debe abrir otro aviso técnico encima.
         return;
       }
 
@@ -344,8 +303,8 @@ class _AuthPageState extends State<AuthPage> {
       await FirebaseAuth.instance.setLanguageCode('es');
       await FirebaseAuth.instance.sendPasswordResetEmail(email: value);
       if (mounted) msg('Te enviamos un correo para restablecer tu contraseña.');
-    } on FirebaseAuthException catch (e) {
-      msg('No se pudo enviar el correo: ${e.message ?? e.code}');
+    } on FirebaseAuthException {
+      msg('No se pudo enviar el correo de recuperación. Revisa la dirección e inténtalo otra vez.');
     } catch (e) {
       debugPrint('PASSWORD_RESET_ERROR: ${e.runtimeType}');
       msg(socialErrorMessage(e, 'el correo de recuperación'));

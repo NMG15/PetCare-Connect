@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -27,7 +28,7 @@ part 'screens/pet_pages.dart';
 part 'screens/admin_pages.dart';
 part 'screens/settings_page.dart';
 
-const green = Color(0xFF2F8F6B);
+const green = Color(0xFF257B54);
 const cream = Color(0xFFF8F6F1);
 const orange = Color(0xFFF2A65A);
 const ink = Color(0xFF193B32);
@@ -78,6 +79,13 @@ class PetCareApp extends StatelessWidget {
     builder: (context, selectedMode, _) => MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'PetCare Connect',
+      locale: const Locale('es', 'MX'),
+      supportedLocales: const [Locale('es', 'MX'), Locale('es')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       themeMode: selectedMode,
       theme: buildPetCareTheme(Brightness.light),
       darkTheme: buildPetCareTheme(Brightness.dark),
