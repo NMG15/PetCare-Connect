@@ -8,8 +8,7 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as timezone_data;
 import 'package:timezone/timezone.dart' as tz;
 
-const _green = Color(0xFF2F8F6B);
-const _pale = Color(0xFFEAF5EF);
+const _green = Color(0xFF257B54);
 const _weekdayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 String _dateLabel(DateTime date) =>
@@ -619,9 +618,15 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
     if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
       time = TimeOfDay(hour: hour, minute: minute);
     }
-    weekdays.addAll((old?['days'] as List?)
-            ?.whereType<num>().map((e) => e.toInt()) ??
-        <int>[]);
+    final savedDays = (old?['days'] as List?)
+        ?.whereType<num>().map((e) => e.toInt())
+        .where((day) => day >= 1 && day <= 7).toSet() ?? <int>{};
+    // Los horarios antiguos guardaban [] para indicar repetición diaria.
+    if (old != null && savedDays.isEmpty) {
+      weekdays.addAll(List<int>.generate(7, (index) => index + 1));
+    } else {
+      weekdays.addAll(savedDays);
+    }
     note.text = (old?['note'] ?? '').toString();
   }
 
@@ -633,6 +638,12 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
 
   Future<void> save() async {
     if (careId == null || saving) return;
+    if (weekdays.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Selecciona al menos un día o pulsa Todos los días.'),
+      ));
+      return;
+    }
     setState(() => saving = true);
     final chosen = widget.careTypes.firstWhere((row) => row['id'] == careId);
     try {
@@ -759,14 +770,23 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
         SizedBox(height: 5),
         Row(children: [
           Expanded(child: Text(
-            weekdays.isEmpty || weekdays.length == 7
-              ? 'Todos los días' : '${weekdays.length} días seleccionados',
+            weekdays.isEmpty ? 'Sin días seleccionados'
+              : weekdays.length == 7 ? 'Todos los días'
+              : '${weekdays.length} días seleccionados',
             style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
           )),
           ActionChip(
             avatar: const Icon(Icons.done_all_rounded, size: 18),
             label: const Text('Todos los días'),
-            onPressed: () => setState(() => weekdays.clear()),
+            tooltip: weekdays.length == 7
+                ? 'Deseleccionar todos los días' : 'Seleccionar los siete días',
+            onPressed: () => setState(() {
+              if (weekdays.length == 7) {
+                weekdays.clear();
+              } else {
+                weekdays.addAll(List<int>.generate(7, (i) => i + 1));
+              }
+            }),
           ),
         ]),
         SizedBox(height: 10),
@@ -775,15 +795,10 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
             final day = index + 1;
             return FilterChip(
               label: Text(_weekdayNames[index]),
-              selected: weekdays.isEmpty || weekdays.contains(day),
+              selected: weekdays.contains(day),
               onSelected: (selected) => setState(() {
-                // Un conjunto vacío significa todos los días en los datos existentes.
-                if (weekdays.isEmpty) {
-                  weekdays.addAll(List<int>.generate(7, (i) => i + 1));
-                }
                 if (selected) { weekdays.add(day); }
                 else { weekdays.remove(day); }
-                if (weekdays.length == 7) weekdays.clear();
               }),
             );
           }),
@@ -792,9 +807,14 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
         Text('Nota opcional', style: TextStyle(
             fontSize: 17, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
         SizedBox(height: 9),
-        TextField(controller: note, maxLines: 2,
+        TextField(
+          controller: note,
+          minLines: 2,
+          maxLines: 3,
+          textAlignVertical: TextAlignVertical.center,
           decoration: const InputDecoration(
             prefixIcon: Icon(Icons.edit_note_outlined),
+            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             hintText: 'Ej. 1 taza de croquetas',
           ),
         ),
@@ -1139,8 +1159,8 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
               color: Theme.of(context).colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.w800))),
           ]),
           SizedBox(height: 6),
-          Text('Cada punto de color indica un tipo de cuidado distinto. '
-              'El número pequeño indica cuántos registros hiciste ese día.',
+          Text('Selecciona una fecha para ver sus cuidados. '
+              'Los puntos indican diferentes tipos de actividad.',
             style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, height: 1.35)),
           SizedBox(height: 14),
           Row(children: _weekdayNames.map((day) => Expanded(
@@ -1176,8 +1196,10 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
                   borderRadius: BorderRadius.circular(10),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: active ? _pale : (records.isEmpty
-                          ? Theme.of(context).colorScheme.surfaceContainerLow : Theme.of(context).colorScheme.primaryContainer),
+                      color: active ? Theme.of(context).colorScheme.primary
+                          : (records.isEmpty
+                            ? Theme.of(context).colorScheme.surfaceContainerLow
+                            : Theme.of(context).colorScheme.primaryContainer),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: active ? _green : (isToday
@@ -1190,7 +1212,11 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
                         Text('$day', style: TextStyle(fontSize: 13,
                           fontWeight: active || isToday
                               ? FontWeight.w800 : FontWeight.w500,
-                          color: Theme.of(context).colorScheme.onSurface)),
+                          color: active
+                              ? Theme.of(context).colorScheme.onPrimary
+                              : records.isNotEmpty
+                                  ? Theme.of(context).colorScheme.onPrimaryContainer
+                                  : Theme.of(context).colorScheme.onSurface)),
                         SizedBox(height: 4),
                         SizedBox(height: 7,
                           child: records.isEmpty
@@ -1213,7 +1239,11 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
                             style: TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.w800,
-                              color: Theme.of(context).colorScheme.onSurface,
+                              color: active
+                                  ? Theme.of(context).colorScheme.onPrimary
+                                  : records.isNotEmpty
+                                      ? Theme.of(context).colorScheme.onPrimaryContainer
+                                      : Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                         ),
@@ -1307,7 +1337,8 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
       appBar: AppBar(title: Text('Historial de ${widget.petName}')),
       body: busy ? Center(child: CircularProgressIndicator())
           : RefreshIndicator(onRefresh: load,
-            child: ListView(padding: const EdgeInsets.fromLTRB(18, 12, 18, 32),
+            child: ListView(padding: EdgeInsets.fromLTRB(
+              18, 12, 18, MediaQuery.viewPaddingOf(context).bottom + 104),
               children: [
                 Card(color: Theme.of(context).colorScheme.primaryContainer, margin: EdgeInsets.zero,
                   child: Padding(padding: const EdgeInsets.all(17),
@@ -1473,9 +1504,7 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
                   ),
                 )),
                 SizedBox(height: 14),
-                Text('El historial muestra acciones registradas en PetCare. '
-                    'Una notificación no cuenta como cuidado realizado '
-                    'hasta que marques el cuidado en la aplicación.',
+                Text('Aquí aparecen los cuidados que registraste.',
                     style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
               ],
             ),

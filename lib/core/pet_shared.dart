@@ -85,6 +85,21 @@ class _PetColorSheetState extends State<_PetColorSheet> {
             children: petColorOptions.map((value) => FilterChip(
               label: Text(value),
               selected: selected.contains(value),
+              selectedColor: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF276245) : const Color(0xFFB2E5C7),
+              checkmarkColor: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFFFFFFFF) : const Color(0xFF134A2E),
+              labelStyle: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontWeight: selected.contains(value)
+                    ? FontWeight.w800 : FontWeight.w500,
+              ),
+              side: BorderSide(
+                color: selected.contains(value)
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.outlineVariant,
+                width: selected.contains(value) ? 1.6 : 1,
+              ),
               onSelected: (yes) => setState(() {
                 if (yes) { selected.add(value); } else { selected.remove(value); }
               }),
