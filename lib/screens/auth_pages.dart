@@ -16,49 +16,171 @@ class AuthGate extends StatelessWidget {
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
+
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return Scaffold(
       body: SafeArea(
-          child: Padding(
-              padding: const EdgeInsets.all(28),
-              child: Column(children: [
-                const Spacer(),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(32),
-                  child: Image.asset('assets/icon/petcare_icon.png',
-                    width: 126, height: 126, fit: BoxFit.contain),
+        child: LayoutBuilder(
+          builder: (context, viewport) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: viewport.maxHeight > 56
+                      ? viewport.maxHeight - 56
+                      : 0,
                 ),
-                SizedBox(height: 28),
-                Text('PetCare Connect',
-                    style: TextStyle(
-                        fontSize: 34,
-                        fontWeight: FontWeight.w800,
-                        color: adaptiveInk(context))),
-                SizedBox(height: 12),
-                Text('Todo el cuidado de tus mascotas, en un solo lugar.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 17, color: adaptiveMuted(context))),
-                const Spacer(),
-                SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: FilledButton(
-                        onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const AuthPage(login: true))),
-                        child: Text('Iniciar sesión'))),
-                SizedBox(height: 12),
-                SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: OutlinedButton(
-                        onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const AuthPage(login: false))),
-                        child: Text('Crear cuenta'))),
-              ]))));
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Column(
+                      children: [
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colors.primaryContainer,
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            child: Text(
+                              'BIENVENIDO A PETCARE',
+                              style: TextStyle(
+                                color: colors.onPrimaryContainer,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        Container(
+                          height: 230,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                colors.primaryContainer,
+                                colors.surfaceContainerHigh,
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(32),
+                          ),
+                          child: Center(
+                            child: Image.asset(
+                              'assets/icon/petcare_icon.png',
+                              width: 145,
+                              height: 145,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 30),
+                        Text(
+                          'PetCare Connect',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: colors.onSurface,
+                            fontSize: 34,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -1,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Todo lo que necesitas para cuidar a tus mascotas, en un solo lugar.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: colors.onSurfaceVariant,
+                            fontSize: 16,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: const [
+                            Chip(
+                              avatar: Icon(Icons.pets, size: 18),
+                              label: Text('Mascotas'),
+                            ),
+                            Chip(
+                              avatar: Icon(Icons.favorite_outline, size: 18),
+                              label: Text('Cuidados'),
+                            ),
+                            Chip(
+                              avatar: Icon(Icons.notifications_none, size: 18),
+                              label: Text('Recordatorios'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 32),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(
+                            height: 56,
+                            child: FilledButton.icon(
+                              icon: const Icon(Icons.login_rounded),
+                              label: const Text('Iniciar sesión'),
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const AuthPage(login: true),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 56,
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.person_add_alt_1_outlined),
+                              label: const Text('Crear cuenta'),
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const AuthPage(login: false),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Text(
+                            'El bienestar de tus mascotas comienza aquí.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: colors.onSurfaceVariant,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
 class AuthPage extends StatefulWidget {
