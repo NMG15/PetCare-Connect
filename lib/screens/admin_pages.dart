@@ -434,7 +434,7 @@ class _AdminUserPageState extends State<AdminUserPage> {
       builder: (c) => AlertDialog(
         title: Text('Eliminar mascota'),
         content: Text(
-          '¿Eliminar ${pet['name']} y todos sus cuidados registrados?',
+          '¿Eliminar ${pet['name']}, sus cuidados y recordatorios? Esta acción no se puede deshacer.',
         ),
         actions: [
           TextButton(
@@ -450,10 +450,32 @@ class _AdminUserPageState extends State<AdminUserPage> {
     );
 
     if (ok == true) {
-      await CloudDb.instance.adminDeletePet(
-        userId,
-        pet['id'].toString(),
+      try {
+        await CloudDb.instance.adminDeletePet(
+          userId,
+          pet['id'].toString(),
+        );
+      } catch (e) {
+        debugPrint('ADMIN_PET_DELETE_ERROR: ${e.runtimeType}');
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se pudo completar la eliminación. Algunos registros podrían haberse eliminado. Actualiza la lista antes de reintentar.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Mascota eliminada correctamente.'),
+        ),
       );
+
       await load();
     }
   }

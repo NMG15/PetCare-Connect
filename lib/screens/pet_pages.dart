@@ -71,7 +71,7 @@ class _HomePageState extends State<HomePage> {
         builder: (c) => AlertDialog(
                 title: Text('¿Eliminar mascota?'),
                 content: Text(
-                    'Se eliminarán ${pet['name']} y todos sus cuidados registrados. Esta acción no se puede deshacer.'),
+                    'Se eliminarán ${pet['name']}, sus cuidados y sus recordatorios. Esta acción no se puede deshacer.'),
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(c, false),
@@ -81,7 +81,29 @@ class _HomePageState extends State<HomePage> {
                       child: Text('Eliminar'))
                 ]));
     if (ok == true) {
-      await CloudDb.instance.deletePet(pet['id'].toString());
+      try {
+        await CloudDb.instance.deletePet(pet['id'].toString());
+      } catch (e) {
+        debugPrint('PET_DELETE_ERROR: ${e.runtimeType}');
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se pudo completar la eliminación. Algunos registros podrían haberse eliminado. Actualiza la lista antes de reintentar.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Mascota eliminada correctamente.'),
+        ),
+      );
+
       await reload();
     }
   }

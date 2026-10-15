@@ -1,10 +1,31 @@
 // PetCare Connect: módulo del mismo paquete Dart; comparte los componentes internos.
 part of '../main.dart';
 
+/// Ejecuta eliminaciones por lotes, dejando el documento principal al final.
+/// Si un lote falla, los siguientes no se ejecutan.
+Future<void> runPetDeletionBatches<T>({
+  required Iterable<T> children,
+  required T parent,
+  required Future<void> Function(List<T>) commitBatch,
+  int maxBatchSize = 400,
+}) async {
+  if (maxBatchSize < 1 || maxBatchSize > 400) {
+    throw ArgumentError.value(maxBatchSize, 'maxBatchSize');
+  }
+
+  final references = <T>[...children, parent];
+
+  for (var start = 0; start < references.length; start += maxBatchSize) {
+    final current = references.skip(start).take(maxBatchSize).toList();
+    await commitBatch(current);
+  }
+}
+
 class CloudDb {
-  CloudDb._();
+  CloudDb._() : _db = FirebaseFirestore.instance;
+  CloudDb.forTesting(this._db);
   static final instance = CloudDb._();
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db;
 
   String get uid {
     final user = FirebaseAuth.instance.currentUser;
@@ -46,19 +67,36 @@ class CloudDb {
   Future<void> updatePet(String id, Map<String, dynamic> values) async =>
       _pets.doc(id).set({...values, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
 
-  Future<void> deletePet(String id) async {
-    final care = await _pets.doc(id).collection('care').get();
-    final batch = _db.batch();
-    for (final doc in care.docs) {
-      batch.delete(doc.reference);
-    }
-    final reminders = await _pets.doc(id).collection('reminders').get();
-    for (final doc in reminders.docs) {
-      batch.delete(doc.reference);
-    }
-    batch.delete(_pets.doc(id));
-    await batch.commit();
+  // Firestore limita cada WriteBatch a un máximo de 500 operaciones.
+  // Se borra primero el contenido y el documento principal se deja al final.
+  // Los conjuntos grandes requieren varios lotes, por lo que la operación
+  // deja de ser atómica si supera el tamaño de un lote.
+  Future<void> _deletePetWithCareAndReminders(
+    DocumentReference<Map<String, dynamic>> petRef,
+  ) async {
+    final care = await petRef.collection('care').get();
+    final reminders = await petRef.collection('reminders').get();
+
+    await runPetDeletionBatches<DocumentReference<Map<String, dynamic>>>(
+      children: [
+        ...care.docs.map((doc) => doc.reference),
+        ...reminders.docs.map((doc) => doc.reference),
+      ],
+      parent: petRef,
+      commitBatch: (references) async {
+        final batch = _db.batch();
+
+        for (final reference in references) {
+          batch.delete(reference);
+        }
+
+        await batch.commit();
+      },
+    );
   }
+
+  Future<void> deletePet(String id) =>
+      _deletePetWithCareAndReminders(_pets.doc(id));
 
   Future<List<Map<String, dynamic>>> care(String petId) async {
     final snap = await _pets.doc(petId).collection('care').orderBy('createdAt', descending: true).get();
@@ -108,16 +146,8 @@ class CloudDb {
     }
   }
 
-  Future<void> adminDeletePet(String userId, String petId) async {
-    final care = await adminPets(userId).doc(petId).collection('care').get();
-    final batch = _db.batch();
-    for (final doc in care.docs) { batch.delete(doc.reference); }
-    final reminders =
-        await adminPets(userId).doc(petId).collection('reminders').get();
-    for (final doc in reminders.docs) { batch.delete(doc.reference); }
-    batch.delete(adminPets(userId).doc(petId));
-    await batch.commit();
-  }
+  Future<void> adminDeletePet(String userId, String petId) =>
+      _deletePetWithCareAndReminders(adminPets(userId).doc(petId));
 
   Future<List<Map<String, dynamic>>> adminCare(String userId, String petId) async {
     final snap = await adminPets(userId).doc(petId).collection('care').orderBy('createdAt', descending: true).get();
