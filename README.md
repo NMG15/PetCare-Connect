@@ -1,63 +1,54 @@
-﻿# 🐾 PetCare Connect
+<p align="center">
+  <img src="docs/media/petcare-banner.png" alt="PetCare Connect: cuida, organiza y acompaña a tus mascotas" width="100%">
+</p>
 
-### El cuidado de tus mascotas en un solo lugar
+<h1 align="center">PetCare Connect</h1>
+<p align="center"><strong>El cuidado de tus mascotas en un solo lugar.</strong></p>
+<p align="center">Organiza sus rutinas, registra momentos importantes y mantén sus cuidados al día.</p>
 
-![Logo de PetCare Connect](assets/icon/petcare_icon.png)
-
-**Version:** 0.20.8+28
-**Plataforma:** Android
-**Desarrollo:** Flutter y Dart
+<p align="center">
+  <a href="https://github.com/NMG15/PetCare-Connect/releases/download/v0.20.8/PetCare_Android_v28_1.apk">
+    <img src="https://img.shields.io/badge/DESCARGAR-APK%20PARA%20ANDROID-087F5B?style=for-the-badge&logo=android&logoColor=white" alt="Descargar PetCare Connect para Android">
+  </a>
+</p>
+<p align="center">
+  <a href="https://github.com/NMG15/PetCare-Connect/releases/download/v0.20.8/PetCare_Android_v28_1.apk"><strong>Descarga directa de PetCare para Android</strong></a><br>
+  <sub>Versión estable disponible: 0.20.8 · Descarga en formato APK</sub>
+</p>
 
 ---
 
-## Acerca de la aplicacion
+## Un espacio para cada mascota
 
-PetCare Connect permite registrar mascotas, organizar sus cuidados
-y programar recordatorios desde un dispositivo Android.
+Cada mascota tiene sus propias necesidades. PetCare Connect te ayuda a llevar el seguimiento de su día a día en una experiencia cómoda y organizada.
 
-## Funciones principales
+| **Perfiles de mascotas** | **Rutinas y recordatorios** |
+|:--|:--|
+| Consulta y actualiza la información de tus compañeros de cuatro patas. | Organiza horarios y actividades para sus cuidados cotidianos. |
+| **Historial y calendario** | **A tu manera** |
+| Revisa los cuidados registrados y consulta sus fechas. | Personaliza los cuidados visibles y utiliza la aplicación en modo claro u oscuro. |
 
-- Registro y edicion de mascotas.
-- Catalogo de especies y razas.
-- Cuidados y actividades diarias.
-- Historial y calendario.
-- Horarios y recordatorios.
-- Modo claro, oscuro y automatico.
-- Panel de administracion.
-- Gestion de tipos de cuidado.
+## Cuidado más sencillo, todos los días
 
-## Tecnologias
+- Registra varias mascotas en un mismo lugar.
+- Organiza sus actividades y necesidades habituales.
+- Consulta cuidados anteriores desde el historial y el calendario.
+- Programa recordatorios según sus rutinas.
+- Accede a una experiencia visual pensada para el cuidado de mascotas.
 
-Flutter, Dart, Firebase Authentication, Cloud Firestore y Android.
+## Cómo instalarla
 
-## Pruebas
+1. Selecciona **Descargar APK para Android**.
+2. Abre el archivo APK en tu teléfono Android.
+3. Sigue los pasos de instalación que muestre tu dispositivo y abre PetCare Connect.
 
-El proyecto utiliza pruebas automatizadas de Flutter y GitHub Actions.
+> **Nota:** PetCare Connect se distribuye actualmente como APK de demostración. No está publicada en Google Play. Instálala únicamente desde este repositorio oficial.
 
-Comandos de verificacion:
+---
 
-- flutter pub get
-- flutter analyze
-- flutter test
-
-## Seguridad
-
-No se incluyen contrasenas ni claves privadas de firma.
-Los archivos confidenciales conocidos estan excluidos mediante .gitignore.
-
-## Descarga
-
-Las APK de las versiones estables se publican en GitHub Releases.
-
-## Colaboracion
-
-Consulta docs/COLABORACION.md para conocer el proceso de trabajo.
-
-## Funciones pendientes
-
-El inicio de sesion con Facebook requiere completar su
-configuracion y validacion en Meta.
-
-## Proyecto academico
-
-Desarrollo de software con control de versiones Git y GitHub.
+<p align="center">
+  <a href="https://petcare-connect-67787.web.app/privacy.html">Privacidad</a> ·
+  <a href="https://petcare-connect-67787.web.app/terms.html">Términos de uso</a> ·
+  <a href="https://petcare-connect-67787.web.app/delete-data.html">Eliminación de datos</a>
+</p>
+<p align="center"><sub>© 2026 PetCare Connect</sub></p>
