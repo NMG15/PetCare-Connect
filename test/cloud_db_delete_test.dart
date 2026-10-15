@@ -58,4 +58,55 @@ void main() {
 
     expect(cuidados.docs, isEmpty);
   });
+
+  test('Reintento recupera una eliminacion parcial', () async {
+    final firestore = FakeFirebaseFirestore();
+    final cloudDb = CloudDb.forTesting(firestore);
+
+    final usuario = firestore.collection('users').doc('usuario_reintento');
+    final mascota = usuario.collection('pets').doc('firulais_reintento');
+
+    await usuario.set({'name': 'Usuario de prueba'});
+    await mascota.set({'name': 'Firulais'});
+
+    // Crear 401 cuidados en lotes pequeños.
+    for (var inicio = 0; inicio < 401; inicio += 200) {
+      final lote = firestore.batch();
+      final limite = inicio + 200 < 401 ? inicio + 200 : 401;
+
+      for (var i = inicio; i < limite; i++) {
+        lote.set(mascota.collection('care').doc('cuidado_$i'), {
+          'name': 'Cuidado $i',
+        });
+      }
+
+      await lote.commit();
+    }
+
+    await mascota.collection('reminders').doc('vacuna').set({'name': 'Vacuna'});
+
+    // Simular que el primer lote ya fue eliminado,
+    // pero la operacion se interrumpio antes de terminar.
+    final primerLote = firestore.batch();
+
+    for (var i = 0; i < 400; i++) {
+      primerLote.delete(mascota.collection('care').doc('cuidado_$i'));
+    }
+
+    await primerLote.commit();
+
+    // La mascota debe seguir existiendo.
+    expect((await mascota.get()).exists, isTrue);
+
+    // Reintentar utilizando nuestra funcion real.
+    await cloudDb.adminDeletePet('usuario_reintento', 'firulais_reintento');
+
+    // Comprobar que termino sin eliminar al propietario.
+    expect((await usuario.get()).exists, isTrue);
+    expect((await mascota.get()).exists, isFalse);
+
+    expect((await mascota.collection('care').get()).docs, isEmpty);
+
+    expect((await mascota.collection('reminders').get()).docs, isEmpty);
+  });
 }
