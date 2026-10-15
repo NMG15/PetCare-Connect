@@ -22,9 +22,10 @@ Future<void> runPetDeletionBatches<T>({
 }
 
 class CloudDb {
-  CloudDb._();
+  CloudDb._() : _db = FirebaseFirestore.instance;
+  CloudDb.forTesting(this._db);
   static final instance = CloudDb._();
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db;
 
   String get uid {
     final user = FirebaseAuth.instance.currentUser;
