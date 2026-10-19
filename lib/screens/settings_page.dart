@@ -15,6 +15,12 @@ class AppearanceSettingsPage extends StatelessWidget {
           builder: (context, selected, _) => ListView(
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 36),
             children: [
+              const PetCarePageIntro(
+                eyebrow: 'Tu espacio PetCare',
+                title: 'A tu manera',
+                subtitle: 'Personaliza la aplicación sin cambiar tus datos.',
+                icon: Icons.palette_outlined,
+              ),
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -43,20 +49,17 @@ class AppearanceSettingsPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
-              Text('Apariencia', style: TextStyle(
-                fontSize: 22, color: colors.onSurface,
-                fontWeight: FontWeight.w800)),
-              const SizedBox(height: 8),
-              Text('Selecciona cómo quieres ver la aplicación.',
-                style: TextStyle(color: colors.onSurfaceVariant)),
-              const SizedBox(height: 14),
+              const PetCareSectionTitle(
+                title: 'Apariencia',
+                caption: 'Elige el ambiente que más te guste.',
+              ),
               _option(context, selected, ThemeMode.system,
                 Icons.brightness_auto_outlined, 'Automático',
-                'Según la configuración del celular'),
+                'Usar automáticamente el tema del teléfono'),
               _option(context, selected, ThemeMode.light,
                 Icons.light_mode_outlined, 'Claro', 'Fondo claro'),
               _option(context, selected, ThemeMode.dark,
-                Icons.dark_mode_outlined, 'Oscuro', 'Fondo oscuro'),
+                Icons.dark_mode_outlined, 'Oscuro', 'Negro y grafito con verde esmeralda'),
             ],
           ),
         ),
@@ -72,21 +75,28 @@ class AppearanceSettingsPage extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10),
       child: Card(
         margin: EdgeInsets.zero,
-        color: selected ? colors.primaryContainer : colors.surfaceContainerLow,
+        color: selected ? colors.surfaceContainerHigh : colors.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(
+            color: selected ? colors.primary : colors.outlineVariant,
+            width: selected ? 1.5 : 0.9,
+          ),
+          borderRadius: BorderRadius.circular(20),
+        ),
         child: Semantics(
           selected: selected,
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16, vertical: 8),
             leading: Icon(icon, color: selected
-              ? colors.onPrimaryContainer : colors.onSurfaceVariant),
+              ? colors.primary : colors.onSurfaceVariant),
             title: Text(title, style: TextStyle(
               fontWeight: FontWeight.w700,
-              color: selected ? colors.onPrimaryContainer : colors.onSurface)),
+              color: colors.onSurface)),
             subtitle: Text(subtitle, style: TextStyle(
-              color: selected ? colors.onPrimaryContainer : colors.onSurfaceVariant)),
+              color: colors.onSurfaceVariant)),
             trailing: Icon(selected ? Icons.check_circle_rounded : Icons.circle_outlined,
-              color: selected ? colors.onPrimaryContainer : colors.onSurfaceVariant),
+              color: selected ? colors.primary : colors.onSurfaceVariant),
             onTap: () => PetCareAppearance.update(value),
           ),
         ),

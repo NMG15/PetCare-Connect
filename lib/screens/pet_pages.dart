@@ -11,6 +11,7 @@ class _HomePageState extends State<HomePage> {
   List<Map<String, dynamic>> pets = [];
   bool loading = true;
   bool admin = false;
+  bool _onlyPets = false;
   String? loadError;
   @override
   void initState() {
@@ -65,6 +66,59 @@ class _HomePageState extends State<HomePage> {
     await reload();
   }
 
+  Future<void> _openAgenda() async {
+    if (pets.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Primero registra una mascota para crear recordatorios.')));
+      return;
+    }
+    final selected = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (sheet) => SafeArea(child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 5, 20, 20),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const PetCareSectionTitle(title: '¿De quién es la agenda?',
+            caption: 'Selecciona una mascota para ver sus horarios.'),
+          Flexible(child: ListView(shrinkWrap: true,
+            children: pets.map((pet) => ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Theme.of(sheet).colorScheme.primaryContainer,
+                backgroundImage: petPhoto(pet),
+                child: petPhoto(pet) == null
+                  ? Icon(Icons.pets_rounded,
+                      color: Theme.of(sheet).colorScheme.primary) : null,
+              ),
+              title: Text((pet['name'] ?? 'Mascota').toString()),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.pop(sheet, pet),
+            )).toList(),
+          )),
+        ]),
+      )),
+    );
+    if (!mounted || selected == null) return;
+    await Navigator.push(context, MaterialPageRoute(
+      builder: (_) => PetRemindersPage(
+        petId: selected['id'].toString(),
+        petName: (selected['name'] ?? 'Mascota').toString(),
+        species: (selected['species'] ?? '').toString(),
+      ),
+    ));
+  }
+
+  void _onTabSelected(int index) {
+    if (index <= 1) {
+      setState(() => _onlyPets = index == 1);
+    } else if (index == 2) {
+      _openAgenda();
+    } else {
+      Navigator.push(context, MaterialPageRoute(
+        builder: (_) => const AppearanceSettingsPage()));
+    }
+  }
+
   Future<void> delete(Map<String, dynamic> pet) async {
     final ok = await showDialog<bool>(
         context: context,
@@ -77,6 +131,7 @@ class _HomePageState extends State<HomePage> {
                       onPressed: () => Navigator.pop(c, false),
                       child: Text('Cancelar')),
                   TextButton(
+                      style: TextButton.styleFrom(foregroundColor: Theme.of(c).colorScheme.error),
                       onPressed: () => Navigator.pop(c, true),
                       child: Text('Eliminar'))
                 ]));
@@ -237,10 +292,12 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
           ]),
-      floatingActionButton: FloatingActionButton.extended(
-          onPressed: add,
-          icon: Icon(Icons.add),
-          label: Text('Nueva mascota')),
+      bottomNavigationBar: PetCareBottomNav(
+        selected: _onlyPets ? 1 : 0,
+        onSelected: _onTabSelected,
+      ),
+      // V33: los accesos «Nueva mascota» ya estan dentro de la lista.
+      // No superponer otro boton flotante a las tarjetas.
       body: loading
           ? Center(child: CircularProgressIndicator())
           : loadError != null
@@ -259,29 +316,46 @@ class _HomePageState extends State<HomePage> {
           : RefreshIndicator(
               onRefresh: reload,
               child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 110),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
                   children: [
-                    Container(
-                        padding: const EdgeInsets.all(22),
-                        decoration: BoxDecoration(
-                            gradient:
-                                LinearGradient(colors: [ink, green]),
-                            borderRadius: BorderRadius.circular(28)),
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Tu familia, bien cuidada 🐾',
-                                  style: TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.white)),
-                              SizedBox(height: 8),
-                              Text(
-                                  'Un espacio para cada mascota y sus cuidados diarios.',
-                                  style: TextStyle(
-                                      color: Colors.white70, fontSize: 15))
-                            ])),
-                    SizedBox(height: 14),
+                    if (!_onlyPets) ...[
+                      PetCareSignatureHero(
+                        eyebrow: 'Bienvenido a tu familia',
+                        title: 'Pequeños cuidados.\nGrandes momentos.',
+                        subtitle: 'Lleva su bienestar al día, de forma sencilla y con cariño.',
+                        icon: Icons.pets_rounded,
+                      ),
+                      const SizedBox(height: 13),
+                      Row(children: [
+                        PetCareMetric(value: '${pets.length}',
+                          label: 'Mis mascotas', icon: Icons.pets_rounded),
+                        const SizedBox(width: 9),
+                        PetCareMetric(value: '${pets.where((pet) => petPhoto(pet) != null).length}',
+                          label: 'Con foto', icon: Icons.photo_camera_outlined),
+                      ]),
+                      const SizedBox(height: 18),
+                      PetCareSectionTitle(title: 'Accesos rápidos',
+                        caption: 'Lo que necesitas, siempre a mano.'),
+                      PetCareActionTile(
+                        title: 'Nueva mascota',
+                        subtitle: 'Agrega un nuevo miembro a tu familia',
+                        icon: Icons.add_circle_outline_rounded,
+                        onTap: add,
+                      ),
+                      PetCareActionTile(
+                        title: 'Ver agenda y recordatorios',
+                        subtitle: 'Consulta los horarios de tus mascotas',
+                        icon: Icons.calendar_month_outlined,
+                        onTap: _openAgenda,
+                      ),
+                    ] else ...[
+                      const PetCarePageIntro(
+                        eyebrow: 'Tu pequeña gran familia',
+                        title: 'Mis mascotas',
+                        subtitle: 'Cada historia empieza con un nombre.',
+                        icon: Icons.pets_rounded,
+                      ),
+                    ],
                     if (FirebaseAuth.instance.currentUser?.emailVerified == false &&
                         FirebaseAuth.instance.currentUser?.providerData.any(
                           (provider) => provider.providerId == 'password',
@@ -330,16 +404,14 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     SizedBox(height: 18),
-                    Row(children: [
-                      Expanded(
-                          child: Text('Mis mascotas',
-                              style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: adaptiveInk(context)))),
-                      Text('${pets.length} registradas',
-                          style: TextStyle(color: Theme.of(context).colorScheme.primary))
-                    ]),
+                    PetCareSectionTitle(
+                      title: _onlyPets ? 'Tus compañeros' : 'Tu familia',
+                      caption: '${pets.length} ${pets.length == 1 ? 'mascota registrada' : 'mascotas registradas'}',
+                      trailing: TextButton(
+                        onPressed: add,
+                        child: const Text('Agregar +'),
+                      ),
+                    ),
                     SizedBox(height: 14),
                     if (pets.isEmpty)
                       Card(
@@ -364,7 +436,7 @@ class _HomePageState extends State<HomePage> {
                               ])))
                     else
                       ...pets.map((pet) => Card(
-                          margin: const EdgeInsets.only(bottom: 12),
+                          margin: const EdgeInsets.only(bottom: 10),
                           child: InkWell(
                               borderRadius: BorderRadius.circular(22),
                               onTap: () async {
@@ -379,7 +451,7 @@ class _HomePageState extends State<HomePage> {
                                   padding: const EdgeInsets.all(15),
                                   child: Row(children: [
                                     CircleAvatar(
-                                        radius: 36,
+                                        radius: 38,
                                         backgroundColor: adaptivePale(context),
                                         backgroundImage: petPhoto(pet),
                                         child: petPhoto(pet) == null
@@ -404,7 +476,12 @@ class _HomePageState extends State<HomePage> {
                                               maxLines: 2,
                                               overflow: TextOverflow.ellipsis,
                                               style: TextStyle(
-                                                  color: adaptiveMuted(context)))
+                                                  color: adaptiveMuted(context))),
+                                          const SizedBox(height: 6),
+                                          Text('Ver perfil y cuidados',
+                                            style: TextStyle(color: Theme.of(context)
+                                              .colorScheme.primary, fontSize: 12,
+                                              fontWeight: FontWeight.w700)),
                                         ])),
                                     IconButton(
                                       tooltip: 'Opciones de ${pet['name']}',
@@ -531,6 +608,12 @@ class _PetEditorState extends State<PetEditor> {
       body: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 26),
           children: [
+            PetCarePageIntro(
+              eyebrow: 'Un lugar para cada historia',
+              title: widget.existing == null ? 'Nueva mascota' : 'Actualizar perfil',
+              subtitle: 'Guarda los detalles que hacen única a tu mascota.',
+              icon: Icons.pets_outlined,
+            ),
             Center(
                 child: InkWell(
                     onTap: choosePhoto,
@@ -578,6 +661,8 @@ class _PetEditorState extends State<PetEditor> {
                 color: adaptiveMuted(context), fontWeight: FontWeight.w600)),
             const SizedBox(height: 7),
             DropdownButtonFormField<String>(
+              menuMaxHeight: 300,
+              isExpanded: true,
                 initialValue: species,
                 decoration: InputDecoration(prefixIcon: Icon(Icons.pets)),
                 items: speciesCatalog.keys
@@ -610,6 +695,8 @@ class _PetEditorState extends State<PetEditor> {
                 color: adaptiveMuted(context), fontWeight: FontWeight.w600)),
             const SizedBox(height: 7),
             DropdownButtonFormField<String>(
+              menuMaxHeight: 300,
+              isExpanded: true,
                 initialValue:
                     ['Macho', 'Hembra', 'No especificado'].contains(sex)
                         ? sex
@@ -675,8 +762,9 @@ class _PetEditorState extends State<PetEditor> {
                 style: TextStyle(color: adaptiveMuted(context), fontWeight: FontWeight.w600)),
             const SizedBox(height: 7),
             DropdownButtonFormField<String>(
-              key: ValueKey('pelaje-$species'),
+              menuMaxHeight: 300,
               isExpanded: true,
+              key: ValueKey('pelaje-$species'),
               initialValue: customCoat
                   ? 'Otro (especificar)'
                   : petCoatOptions(species).contains(coat.text) ? coat.text : null,
@@ -802,6 +890,7 @@ class _PetDetailState extends State<PetDetail> {
   Map<String, dynamic>? pet;
   List<Map<String, dynamic>> history = [];
   List<Map<String, dynamic>> careTypes = [];
+  final Set<String> _savingCareIds = <String>{};
 
   @override
   void initState() {
@@ -814,8 +903,8 @@ class _PetDetailState extends State<PetDetail> {
     final entries = await CloudDb.instance.care(widget.petId);
     final types = current == null
         ? <Map<String, dynamic>>[]
-        : await CloudDb.instance
-            .careCatalogForSpecies((current['species'] ?? '').toString());
+        : await CloudDb.instance.careCatalogForPet(
+            (current['species'] ?? '').toString(), current);
     final hidden = (current?['hiddenCareIds'] as List?)
             ?.map((value) => value.toString()).toSet() ??
         <String>{};
@@ -833,8 +922,27 @@ class _PetDetailState extends State<PetDetail> {
   }
 
   Future<void> mark(Map<String, dynamic> careType) async {
-    await CloudDb.instance.addCare(widget.petId, careType);
-    await load();
+    final id = (careType['id'] ?? '').toString();
+    if (id.isEmpty || _savingCareIds.contains(id)) return;
+    setState(() => _savingCareIds.add(id));
+    try {
+      await CloudDb.instance.addCare(widget.petId, careType);
+      await load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('«${careTypeLabel(careType)}» registrado. Puedes volver a registrarlo cuando lo necesites.'),
+          duration: const Duration(seconds: 2),
+        ));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No se guardó el cuidado. Revisa tu conexión.'),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _savingCareIds.remove(id));
+    }
   }
 
   @override
@@ -882,11 +990,21 @@ class _PetDetailState extends State<PetDetail> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [ink, green]),
+                gradient: LinearGradient(
+                  colors: Theme.of(context).brightness == Brightness.dark
+                      ? const [Color(0xFF26292D), Color(0xFF16191C)]
+                      : const [Color(0xFF174F3B), Color(0xFF0B3729)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
                 borderRadius: BorderRadius.circular(28),
               ),
               child: Column(
                 children: [
+                  const Text('SU PERFIL', style: TextStyle(
+                    color: Color(0xFF47E6A1), fontWeight: FontWeight.w800,
+                    fontSize: 11, letterSpacing: 2)),
+                  const SizedBox(height: 14),
                   CircleAvatar(
                     radius: 52,
                     backgroundColor: Colors.white24,
@@ -1017,7 +1135,16 @@ class _PetDetailState extends State<PetDetail> {
                 ),
               ),
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(3, 0, 3, 12),
+              child: Text(
+                'Marca cada cuidado cuando lo realices. El conteo comienza de nuevo cada día; '
+                'los avisos solo se envían si configuras un horario.',
+                style: TextStyle(fontSize: 12.5, height: 1.35,
+                  color: adaptiveMuted(context)),
+              ),
+            ),
             if (careTypes.isEmpty)
               Card(
                 child: Padding(
@@ -1036,64 +1163,16 @@ class _PetDetailState extends State<PetDetail> {
                     runSpacing: 12,
                     children: careTypes.map((type) {
                       final id = (type['id'] ?? '').toString();
-                      final done = today.any(
+                      final countToday = today.where(
                         (row) => (row['type'] ?? '').toString() == id,
-                      );
+                      ).length;
                       return SizedBox(
                         width: width,
-                        child: Card(
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(22),
-                            onTap: () => mark(type),
-                            child: Padding(
-                              padding: const EdgeInsets.all(15),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  CircleAvatar(
-                                    backgroundColor:
-                                        done ? Theme.of(context).colorScheme.primaryContainer
-                                            : Theme.of(context).colorScheme.secondaryContainer,
-                                    child: Icon(
-                                      done ? Icons.check : careTypeIcon(type),
-                                      color: done ? Theme.of(context).colorScheme.onPrimaryContainer
-                                          : Theme.of(context).colorScheme.onSecondaryContainer,
-                                    ),
-                                  ),
-                                  SizedBox(height: 10),
-                                  Text(
-                                    careTypeLabel(type),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: adaptiveInk(context),
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  if ((type['description'] ?? '').toString().trim().isNotEmpty) ...[
-                                    SizedBox(height: 5),
-                                    Text(
-                                      type['description'].toString(),
-                                      maxLines: 3,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(fontSize: 12, color: adaptiveMuted(context)),
-                                    ),
-                                  ],
-                                  SizedBox(height: 4),
-                                  Text(
-                                    done
-                                        ? 'Registrado hoy · repetir'
-                                        : 'Registrar cuidado',
-                                    style: TextStyle(
-                                      color: adaptiveMuted(context),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                        child: PetCareTodayTile(
+                          care: type,
+                          countToday: countToday,
+                          saving: _savingCareIds.contains(id),
+                          onTap: () => mark(type),
                         ),
                       );
                     }).toList(),

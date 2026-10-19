@@ -8,7 +8,21 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as timezone_data;
 import 'package:timezone/timezone.dart' as tz;
 
-const _green = Color(0xFF257B54);
+// El catalogo de una mascota combina tipos generales y personales.
+// PetCare comparte el catalogo como parte de la biblioteca main.dart.
+// Importar explicitamente los ayudantes utilizados por esta pantalla y los avisos.
+import 'main.dart' show
+    CloudDb,
+    catalogCareById,
+    effectiveReminderCareLabel,
+    careTypeLabel,
+    careIconChoices,
+    careIcon,
+    careNameTaken,
+    careTypeIcon;
+
+const _green = Color(0xFF13694D);
+
 const _weekdayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 String _dateLabel(DateTime date) =>
@@ -198,6 +212,8 @@ class PetCareAlerts {
       final hidden = (data['hiddenCareIds'] as List?)
               ?.map((e) => e.toString()).toSet() ??
           <String>{};
+      final catalog = await CloudDb.instance.careCatalogForPet(
+          (data['species'] ?? '').toString(), data);
       final reminders = await pet.reference.collection('reminders').get();
       for (final reminder in reminders.docs) {
         final row = reminder.data();
@@ -214,7 +230,10 @@ class PetCareAlerts {
           petId: pet.id,
           petName: (data['name'] ?? 'tu mascota').toString(),
           reminderId: reminder.id,
-          label: (row['careLabel'] ?? 'un cuidado').toString(),
+          label: catalogCareById(catalog, careId) == null
+              ? effectiveReminderCareLabel(data, careId,
+                  (row['careLabel'] ?? 'un cuidado').toString())
+              : careTypeLabel(catalogCareById(catalog, careId)!),
           careId: careId,
           note: (row['note'] ?? '').toString(),
           hour: hour,
@@ -252,6 +271,41 @@ class PetCareAlerts {
   }
 }
 
+/// Solo los horarios de este cuidado. Crear un horario no crea un cuidado.
+List<Map<String, dynamic>> remindersForCare(
+    List<Map<String, dynamic>> rows, String careId) =>
+    rows.where((row) => (row['careId'] ?? '').toString() == careId)
+        .toList(growable: false);
+
+/// Un solo horario nuevo por cuidado y mascota. No borra los avisos antiguos.
+bool canAddReminderForCare(List<Map<String, dynamic>> reminders, String careId) {
+  return !reminders.any((item) => (item['careId'] ?? '').toString() == careId);
+}
+
+/// Solo las categorías que aún no tienen horario disponible para crear otro.
+List<Map<String, dynamic>> caresWithoutReminder(
+    List<Map<String, dynamic>> catalog,
+    List<Map<String, dynamic>> reminders) {
+  return catalog.where((care) => canAddReminderForCare(
+    reminders, (care['id'] ?? '').toString(),
+  )).toList(growable: false);
+}
+
+String careScheduleSummary(List<Map<String, dynamic>> rows) {
+  if (rows.isEmpty) return 'Sin horario';
+  if (rows.length > 1) {
+    return '${rows.length} horarios'; // Se conservan avisos antiguos.
+  }
+  final row = rows.first;
+  final hour = (row['hour'] as num?)?.toInt();
+  final minute = (row['minute'] as num?)?.toInt();
+  if (hour == null || minute == null || hour < 0 || hour > 23 ||
+      minute < 0 || minute > 59) {
+    return '1 horario';
+  }
+  return 'Aviso: ${_friendlyTime(hour, minute)}';
+}
+
 class PetCareVisibilityPage extends StatefulWidget {
   final String petId;
   final String petName;
@@ -267,7 +321,12 @@ class PetCareVisibilityPage extends StatefulWidget {
 class _PetCareVisibilityPageState extends State<PetCareVisibilityPage> {
   List<Map<String, dynamic>> catalog = [];
   Set<String> hidden = {};
+  List<Map<String, dynamic>> personalCare = [];
+  Map<String, dynamic> careOverrides = {};
+  List<Map<String, dynamic>> petReminders = [];
   bool busy = true;
+  bool editing = false;
+  final Set<String> updatingVisibility = <String>{};
 
   @override
   void initState() {
@@ -278,16 +337,37 @@ class _PetCareVisibilityPageState extends State<PetCareVisibilityPage> {
   Future<void> load() async {
     try {
       final pet = await _petDoc(widget.petId).get();
-      final all = await FirebaseFirestore.instance.collection('careCatalog').get();
-      final shown = all.docs.map((d) => {'id': d.id, ...d.data()})
-          .where((care) {
-            if (care['active'] == false) return false;
-            final species = care['species'];
-            return species is List && species.contains(widget.species);
-          }).toList();
+      final data = pet.data() ?? <String, dynamic>{};
+      final shown = await CloudDb.instance.careCatalogForPet(
+          widget.species, data);
+      // Horarios existentes: no se crean ni modifican al ver esta pantalla.
+      List<Map<String, dynamic>> savedSchedules = [];
+      try {
+        final scheduleSnap = await _reminderDocs(widget.petId).get();
+        savedSchedules = scheduleSnap.docs
+            .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+            .toList();
+      } catch (_) {
+        // La personalizacion sigue disponible si temporalmente faltan avisos.
+      }
+      final custom = data['personalCareTypes'];
+      final personal = <Map<String, dynamic>>[];
+      if (custom is List) {
+        for (final row in custom) {
+          if (row is Map &&
+              (row['id'] ?? '').toString().startsWith('personal_')) {
+            personal.add(Map<String, dynamic>.from(row));
+          }
+        }
+      }
       if (mounted) {
         setState(() {
           catalog = shown;
+          personalCare = personal;
+          petReminders = savedSchedules;
+          careOverrides = data['careOverrides'] is Map
+              ? Map<String, dynamic>.from(data['careOverrides'] as Map)
+              : <String, dynamic>{};
           hidden = (pet.data()?['hiddenCareIds'] as List?)
                   ?.map((e) => e.toString()).toSet() ??
               <String>{};
@@ -300,6 +380,8 @@ class _PetCareVisibilityPageState extends State<PetCareVisibilityPage> {
   }
 
   Future<void> change(String careId, bool show) async {
+    if (updatingVisibility.contains(careId)) return;
+    setState(() => updatingVisibility.add(careId));
     final updated = Set<String>.from(hidden);
     if (show) {
       updated.remove(careId);
@@ -311,46 +393,320 @@ class _PetCareVisibilityPageState extends State<PetCareVisibilityPage> {
         {'hiddenCareIds': updated.toList()}, SetOptions(merge: true),
       );
       if (mounted) setState(() => hidden = updated);
-      await PetCareAlerts.instance.syncForUser(_userUid());
+      try {
+        await PetCareAlerts.instance.syncForUser(_userUid());
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Visibilidad guardada, pero no se pudo actualizar los avisos en este teléfono.'),
+          ));
+        }
+      }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('No se pudo actualizar el cuidado. Comprueba Internet.'),
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No se pudo guardar la visibilidad. Comprueba Internet.'),
         ));
       }
+    } finally {
+      if (mounted) setState(() => updatingVisibility.remove(careId));
+    }
+  }
+
+  // V35: renombrar los cuidados de base SOLO para esta mascota,
+  // sin tocar el catalogo general ni perder los IDs del historial/avisos.
+  Future<void> editCare([Map<String, dynamic>? item]) async {
+    if (editing) { return; }
+    final isPersonal = item == null || item['personal'] == true;
+    final controller = TextEditingController(text: (item?['label'] ?? '').toString());
+    var icon = (item?['icon'] ?? 'pets').toString();
+    if (!careIconChoices.containsKey(icon)) { icon = 'pets'; }
+    final form = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (dialog, setFormState) => AlertDialog(
+          title: Text(item == null ? 'Agregar cuidado'
+              : isPersonal ? 'Editar cuidado personal' : 'Editar cuidado de base'),
+          content: SingleChildScrollView(child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: controller,
+                maxLength: 45,
+                textCapitalization: TextCapitalization.sentences,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Nombre del cuidado',
+                  hintText: 'Ej. Agua especial, comida o medicina',
+                ),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                initialValue: icon,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Icono del cuidado'),
+                items: careIconChoices.entries.map((choice) => DropdownMenuItem(
+                  value: choice.key,
+                  child: Row(children: [
+                    Icon(careIcon(choice.key), size: 19),
+                    const SizedBox(width: 11),
+                    Flexible(child: Text(choice.value,
+                      overflow: TextOverflow.ellipsis)),
+                  ]),
+                )).toList(),
+                onChanged: (choice) {
+                  if (choice != null) { setFormState(() => icon = choice); }
+                },
+              ),
+
+            ],
+          )),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog),
+                child: const Text('Cancelar')),
+            FilledButton(onPressed: () {
+              final label = controller.text.trim();
+              if (label.isNotEmpty) {
+                Navigator.pop(dialog, {'label': label, 'icon': icon});
+              }
+            }, child: const Text('Guardar')),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    if (form == null || !mounted) { return; }
+    final label = (form['label'] ?? '').trim();
+    final selectedIcon = form['icon'] ?? 'pets';
+    if (label.isEmpty || label.length > 45) { return; }
+    if (careNameTaken(catalog, label,
+        exceptId: item == null ? null : (item['id'] ?? '').toString())) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Ya tienes un cuidado con ese nombre. '
+            'Edítalo en lugar de crear otro.'),
+      ));
+      return;
+    }
+    if (item == null && personalCare.length >= 30) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Límite de 30 cuidados personales por mascota.'),
+      ));
+      return;
+    }
+    setState(() => editing = true);
+    try {
+      if (isPersonal) {
+        final revised = personalCare
+            .map((row) => Map<String, dynamic>.from(row)).toList();
+        if (item == null) {
+          revised.add({
+            'id': 'personal_${DateTime.now().microsecondsSinceEpoch}',
+            'label': label,
+            'icon': selectedIcon,
+          });
+        } else {
+          final index = revised.indexWhere((row) => row['id'] == item['id']);
+          if (index < 0) { throw StateError('Cuidado no encontrado.'); }
+          revised[index]['label'] = label;
+          revised[index]['icon'] = selectedIcon;
+        }
+        await CloudDb.instance.updatePet(widget.petId,
+            {'personalCareTypes': revised});
+      } else {
+        final id = (item['id'] ?? '').toString();
+        final revised = Map<String, dynamic>.from(careOverrides);
+        revised[id] = {'label': label, 'icon': selectedIcon};
+        await CloudDb.instance.updatePet(widget.petId,
+            {'careOverrides': revised});
+      }
+      await load();
+      try {
+        await PetCareAlerts.instance.syncForUser(_userUid());
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Se guardó el cuidado, pero no se pudieron '
+                'actualizar los avisos de este dispositivo. Revisa tus horarios.'),
+          ));
+        }
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Cambios guardados para esta mascota.'),
+        ));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No se pudo guardar. Comprueba tu conexión.'),
+        ));
+      }
+    } finally {
+      if (mounted) { setState(() => editing = false); }
+    }
+  }
+
+  Future<void> openCareSchedules(Map<String, dynamic> care) async {
+    if (hidden.contains((care['id'] ?? '').toString())) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Activa el cuidado para configurar su horario.'),
+      ));
+      return;
+    }
+    final id = (care['id'] ?? '').toString();
+    final schedules = remindersForCare(petReminders, id);
+    if (schedules.length > 1) {
+      // No se elimina ni reemplaza en silencio ningún aviso antiguo.
+      await Navigator.push<void>(context, MaterialPageRoute(
+        builder: (_) => PetRemindersPage(
+          petId: widget.petId,
+          petName: widget.petName,
+          species: widget.species,
+          focusCareId: id,
+        ),
+      ));
+    } else {
+      // En la situación normal, un toque abre directamente la edición.
+      await Navigator.push<bool>(context, MaterialPageRoute(
+        builder: (_) => ReminderEditorPage(
+          petId: widget.petId,
+          petName: widget.petName,
+          careTypes: [care],
+          initialCareId: id,
+          existing: schedules.isEmpty ? null : schedules.first,
+        ),
+      ));
+    }
+    if (mounted) await load();
+  }
+
+  Future<void> resetBaseCare(Map<String, dynamic> care) async {
+    if (editing) { return; }
+    final id = (care['id'] ?? '').toString();
+    if (careOverrides[id] == null) { return; }
+    setState(() => editing = true);
+    try {
+      final revised = Map<String, dynamic>.from(careOverrides)..remove(id);
+      await CloudDb.instance.updatePet(widget.petId, {'careOverrides': revised});
+      await load();
+      try {
+        await PetCareAlerts.instance.syncForUser(_userUid());
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Nombre restaurado, pero los avisos no pudieron actualizarse.'),
+          ));
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('No se pudo restaurar el nombre original.'),
+        ));
+      }
+    } finally {
+      if (mounted) { setState(() => editing = false); }
     }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text('Mis cuidados visibles')),
+        appBar: AppBar(title: Text('Personalizar cuidados')),
         body: busy ? Center(child: CircularProgressIndicator())
             : ListView(
                 padding: const EdgeInsets.all(18),
                 children: [
-                  Text('Elige los cuidados que necesita ${widget.petName}.',
-                      style: TextStyle(fontSize: 20,
-                          fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
-                  SizedBox(height: 8),
-                  Text('Ocultar un cuidado no borra su historial. '
-                      'Mientras esté oculto, tampoco se programarán sus avisos.'),
-                  SizedBox(height: 14),
+                  // El titulo de la barra ya explica esta seccion.
+                  SizedBox(width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: editing ? null : () => editCare(),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Nuevo cuidado'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   if (catalog.isEmpty)
-                    Card(child: Padding(
+                    const Card(child: Padding(
                       padding: EdgeInsets.all(20),
-                      child: Text('No hay cuidados activos para esta especie. '
-                          'El administrador puede agregarlos al catálogo.'),
+                      child: Text('Todavía no hay cuidados para esta especie. '
+                          'Puedes agregar uno personalizado.'),
                     )),
                   ...catalog.map((care) {
                     final id = care['id'].toString();
-                    return Card(child: SwitchListTile(
-                      title: Text(_careName(care)),
-                      subtitle: Text(hidden.contains(id)
-                          ? 'Oculto solo para esta mascota'
-                          : 'Visible en sus cuidados diarios'),
-                      value: !hidden.contains(id),
-                      onChanged: (value) => change(id, value),
-                    ));
+                    final visible = !hidden.contains(id);
+                    final isPersonal = care['personal'] == true;
+                    final scheme = Theme.of(context).colorScheme;
+                    final dark = Theme.of(context).brightness == Brightness.dark;
+                    final accent = dark ? const Color(0xFF47E6A1)
+                        : const Color(0xFF13694D);
+                    final schedules = remindersForCare(petReminders, id);
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      color: scheme.surfaceContainerLow,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(17),
+                        side: BorderSide(color: visible
+                          ? scheme.outlineVariant : scheme.outlineVariant.withValues(alpha: 0.6)),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 10, 12, 11),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(children: [
+                              SizedBox(width: 36, height: 36,
+                                child: Icon(careTypeIcon(care),
+                                  color: visible ? accent : scheme.onSurfaceVariant)),
+                              const SizedBox(width: 10),
+                              Expanded(child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(_careName(care), maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontWeight: FontWeight.w800,
+                                      color: scheme.onSurface)),
+                                  Text(visible ? careScheduleSummary(schedules) : 'Oculto',
+                                    style: TextStyle(fontSize: 12,
+                                      color: scheme.onSurfaceVariant)),
+                                ],
+                              )),
+                              Semantics(
+                                label: 'Mostrar ${_careName(care)}',
+                                child: Switch(
+                                  value: visible,
+                                  activeTrackColor: accent,
+                                  activeThumbColor: dark ? const Color(0xFF052819)
+                                      : Colors.white,
+                                  onChanged: editing || updatingVisibility.contains(id)
+                                      ? null : (value) => change(id, value),
+                                ),
+                              ),
+                            ]),
+                            const SizedBox(height: 4),
+                            Row(children: [
+                              Expanded(child: TextButton.icon(
+                                onPressed: editing ? null : () => editCare(care),
+                                icon: const Icon(Icons.edit_outlined, size: 17),
+                                label: const Text('Editar'),
+                              )),
+                              const SizedBox(width: 8),
+                              Expanded(child: OutlinedButton.icon(
+                                onPressed: editing || !visible
+                                    ? null : () => openCareSchedules(care),
+                                icon: const Icon(Icons.schedule_outlined, size: 17),
+                                label: Text(schedules.length > 1 ? 'Horarios' : 'Hora'),
+                              )),
+                              if (!isPersonal && care['userEdited'] == true)
+                                IconButton(
+                                  tooltip: 'Restaurar nombre e icono',
+                                  onPressed: editing ? null : () => resetBaseCare(care),
+                                  icon: const Icon(Icons.restart_alt_rounded),
+                                ),
+                            ]),
+                          ],
+                        ),
+                      ),
+                    );
                   }),
                 ],
               ),
@@ -361,8 +717,11 @@ class PetRemindersPage extends StatefulWidget {
   final String petId;
   final String petName;
   final String species;
+  /// Si llega desde "Personalizar cuidados", solo muestra este cuidado.
+  final String? focusCareId;
   const PetRemindersPage({
     super.key, required this.petId, required this.petName, required this.species,
+    this.focusCareId,
   });
   @override
   State<PetRemindersPage> createState() => _PetRemindersPageState();
@@ -385,12 +744,16 @@ class _PetRemindersPageState extends State<PetRemindersPage> {
       final hidden = (pet.data()?['hiddenCareIds'] as List?)
               ?.map((e) => e.toString()).toSet() ??
           <String>{};
-      final types = await FirebaseFirestore.instance.collection('careCatalog').get();
+      final types = await CloudDb.instance.careCatalogForPet(
+          widget.species, pet.data() ?? <String, dynamic>{});
       final remindersSnap = await _reminderDocs(widget.petId).get();
       if (mounted) {
         setState(() {
           reminders = remindersSnap.docs
-              .map((d) => {'id': d.id, ...d.data()}).toList()
+              .map((d) => <String, dynamic>{'id': d.id, ...d.data()})
+              .where((d) => widget.focusCareId == null ||
+                  d['careId'] == widget.focusCareId)
+              .toList()
             ..sort((a, b) {
               final first = ((a['hour'] as num?)?.toInt() ?? 0) * 60 +
                   ((a['minute'] as num?)?.toInt() ?? 0);
@@ -398,10 +761,10 @@ class _PetRemindersPageState extends State<PetRemindersPage> {
                   ((b['minute'] as num?)?.toInt() ?? 0);
               return first.compareTo(second);
             });
-          careTypes = types.docs.map((d) => {'id': d.id, ...d.data()})
-            .where((e) => e['active'] != false &&
-                (e['species'] as List?)?.contains(widget.species) == true &&
-                !hidden.contains(e['id'])).toList();
+          careTypes = types.where((e) => e['active'] != false &&
+                !hidden.contains(e['id']) &&
+                (widget.focusCareId == null || e['id'] == widget.focusCareId))
+              .toList();
           busy = false;
         });
       }
@@ -416,15 +779,30 @@ class _PetRemindersPageState extends State<PetRemindersPage> {
   }
 
   Future<void> edit([Map<String, dynamic>? existing]) async {
+    final choices = existing == null
+        ? caresWithoutReminder(careTypes, reminders)
+        : careTypes.where((care) =>
+            care['id'].toString() == (existing['careId'] ?? '').toString())
+            .toList(growable: false);
+    if (choices.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Este cuidado ya tiene horario. Edítalo.'),
+        ));
+      }
+      return;
+    }
     final changed = await Navigator.push<bool>(context, MaterialPageRoute(
       builder: (_) => ReminderEditorPage(
         petId: widget.petId,
         petName: widget.petName,
-        careTypes: careTypes,
+        careTypes: choices,
+        initialCareId: existing == null ? widget.focusCareId
+            : existing['careId'].toString(),
         existing: existing,
       ),
     ));
-    if (changed == true) await load();
+    if (changed == true && mounted) await load();
   }
 
   Future<void> delete(Map<String, dynamic> row) async {
@@ -437,8 +815,14 @@ class _PetRemindersPageState extends State<PetRemindersPage> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false),
               child: Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true),
-              child: Text('Eliminar horario')),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Eliminar horario'),
+          ),
         ],
       ),
     );
@@ -459,64 +843,62 @@ class _PetRemindersPageState extends State<PetRemindersPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text('Horarios de ${widget.petName}')),
-    floatingActionButton: FloatingActionButton.extended(
-      onPressed: busy || careTypes.isEmpty ? null : () => edit(),
-      icon: Icon(Icons.add_alarm),
-      label: Text('Nuevo horario'),
-    ),
+    // V33: crear horario desde el flujo visible, sin tapar los registros.
     body: busy ? Center(child: CircularProgressIndicator())
         : RefreshIndicator(
           onRefresh: load,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 12, 18, 110),
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 36),
             children: [
-              Card(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Row(children: [
-                    CircleAvatar(
-                      radius: 23, backgroundColor: Theme.of(context).colorScheme.surface,
-                      child: Icon(Icons.notifications_active_outlined, color: Theme.of(context).colorScheme.primary),
-                    ),
-                    SizedBox(width: 13),
-                    Expanded(child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Sus cuidados, a tiempo',
-                          style: TextStyle(fontSize: 18,
-                              fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
-                        SizedBox(height: 5),
-                        Text('Elige qué cuidado recordar, a qué hora y en qué días. '
-                          '${reminders.length} ${reminders.length == 1 ? 'horario activo' : 'horarios activos'}.',
-                          style: TextStyle(height: 1.35)),
-                      ],
+              if (widget.focusCareId != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    _careName(careTypes.firstWhere(
+                      (row) => row['id'] == widget.focusCareId,
+                      orElse: () => <String, dynamic>{'label': 'Cuidado'},
                     )),
-                  ]),
+                    style: const TextStyle(fontSize: 20,
+                        fontWeight: FontWeight.w800),
+                  ),
                 ),
-              ),
-              SizedBox(height: 20),
               Row(children: [
-                Expanded(child: Text('Mis recordatorios',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800,
+                Expanded(child: Text('${reminders.length} ${reminders.length == 1 ? 'horario' : 'horarios'}',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
                       color: Theme.of(context).colorScheme.onSurface))),
-                Text('${reminders.length}',
-                  style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w800)),
+                if (widget.focusCareId == null)
+                  TextButton.icon(
+                    onPressed: () async {
+                      await Navigator.push<void>(context, MaterialPageRoute(
+                        builder: (_) => PetCareVisibilityPage(
+                          petId: widget.petId, petName: widget.petName,
+                          species: widget.species,
+                        ),
+                      ));
+                      if (mounted) await load();
+                    },
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Nuevo cuidado'),
+                  ),
               ]),
-              SizedBox(height: 10),
+              const SizedBox(height: 10),
+              if (caresWithoutReminder(careTypes, reminders).isNotEmpty) ...[
+                SizedBox(width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => edit(),
+                    icon: const Icon(Icons.add_alarm_rounded),
+                    label: const Text('Nuevo horario'),
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
               if (reminders.isEmpty)
-                Card(child: Padding(padding: EdgeInsets.all(22),
-                  child: Column(children: [
-                    Icon(Icons.event_available, color: Theme.of(context).colorScheme.primary, size: 36),
-                    SizedBox(height: 10),
-                    Text('Aún no hay horarios para esta mascota.',
-                      textAlign: TextAlign.center),
-                    SizedBox(height: 5),
-                    Text('Pulsa «Nuevo horario» para programar su comida u otro cuidado.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                  ]),
-                )),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Text('Sin avisos programados.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                ),
               ...reminders.map((row) {
                 final hour = (row['hour'] as num?)?.toInt() ?? 0;
                 final minute = (row['minute'] as num?)?.toInt() ?? 0;
@@ -544,7 +926,11 @@ class _PetRemindersPageState extends State<PetRemindersPage> {
                           Expanded(child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text((row['careLabel'] ?? 'Cuidado').toString(),
+                              Text(catalogCareById(careTypes,
+                                  (row['careId'] ?? '').toString()) == null
+                                    ? (row['careLabel'] ?? 'Cuidado').toString()
+                                    : careTypeLabel(catalogCareById(careTypes,
+                                        (row['careId'] ?? '').toString())!),
                                 style: TextStyle(fontSize: 16,
                                     fontWeight: FontWeight.w800)),
                               SizedBox(height: 4),
@@ -567,6 +953,8 @@ class _PetRemindersPageState extends State<PetRemindersPage> {
                           )),
                           SizedBox(width: 8),
                           Expanded(child: TextButton.icon(
+                            style: TextButton.styleFrom(
+                              foregroundColor: Theme.of(context).colorScheme.error),
                             onPressed: () => delete(row),
                             icon: Icon(Icons.delete_outline, size: 18),
                             label: Text('Eliminar'),
@@ -588,9 +976,10 @@ class ReminderEditorPage extends StatefulWidget {
   final String petName;
   final List<Map<String, dynamic>> careTypes;
   final Map<String, dynamic>? existing;
+  final String? initialCareId;
   const ReminderEditorPage({
     super.key, required this.petId, required this.petName,
-    required this.careTypes, this.existing,
+    required this.careTypes, this.existing, this.initialCareId,
   });
   @override
   State<ReminderEditorPage> createState() => _ReminderEditorPageState();
@@ -607,7 +996,7 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
   void initState() {
     super.initState();
     final old = widget.existing;
-    final preferred = (old?['careId'] ?? '').toString();
+    final preferred = (old?['careId'] ?? widget.initialCareId ?? '').toString();
     if (widget.careTypes.any((item) => item['id'] == preferred)) {
       careId = preferred;
     } else if (widget.careTypes.isNotEmpty) {
@@ -667,14 +1056,41 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
         'enabled': true,
         'updatedAt': FieldValue.serverTimestamp(),
       };
+      final remindersRef = _reminderDocs(widget.petId);
+      // La UI no es la autoridad: comprobar en Firestore antes de guardar.
+      final sameCare = await remindersRef
+          .where('careId', isEqualTo: careId).get();
+      final currentId = widget.existing?['id']?.toString();
+      final conflict = sameCare.docs.any((doc) => doc.id != currentId);
+      if (widget.existing == null && sameCare.docs.isNotEmpty ||
+          widget.existing != null && conflict) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Este cuidado ya tiene horario. Edítalo.'),
+          ));
+          setState(() => saving = false);
+        }
+        return;
+      }
       if (widget.existing == null) {
-        await _reminderDocs(widget.petId).add({
+        // ID determinista: dos dispositivos no crean dos avisos nuevos
+        // distintos para el mismo cuidado. Los documentos antiguos se respetan.
+        final canonical = remindersRef.doc('care_$careId');
+        final previous = await canonical.get();
+        if (previous.exists) {
+          if (mounted) {
+            setState(() => saving = false);
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('El horario ya existe. Actualiza la lista.'),
+            ));
+          }
+          return;
+        }
+        await canonical.set({
           ...data, 'createdAt': FieldValue.serverTimestamp(),
         });
       } else {
-        await _reminderDocs(widget.petId)
-            .doc(widget.existing!['id'].toString())
-            .set(data, SetOptions(merge: true));
+        await remindersRef.doc(currentId).set(data, SetOptions(merge: true));
       }
       await PetCareAlerts.instance.syncForUser(_userUid());
       if (mounted) Navigator.pop(context, true);
@@ -689,50 +1105,109 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
     }
   }
 
+  // Selector compacto; evita que el desplegable nativo ocupe o tape
+  // casi toda la pantalla en dispositivos Xiaomi con texto ampliado.
+  Future<void> selectCare() async {
+    if (widget.careTypes.isEmpty) return;
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final colors = Theme.of(sheetContext).colorScheme;
+        final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.42;
+        final neededHeight = 76.0 + widget.careTypes.length * 54.0;
+        return SafeArea(
+          top: false,
+          child: SizedBox(
+            height: neededHeight < maxHeight ? neededHeight : maxHeight,
+            child: Column(children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 4, 22, 14),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Selecciona el cuidado',
+                    style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800,
+                      color: colors.onSurface)),
+                ),
+              ),
+              Expanded(child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                itemCount: widget.careTypes.length,
+                itemBuilder: (context, index) {
+                  final care = widget.careTypes[index];
+                  final id = care['id'].toString();
+                  final selected = id == careId;
+                  return ListTile(
+                    minTileHeight: 52,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                    tileColor: selected ? colors.primaryContainer : null,
+                    leading: Icon(Icons.pets_outlined,
+                      color: selected ? colors.primary : colors.onSurfaceVariant),
+                    title: Text(_careName(care), maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                    trailing: selected
+                      ? Icon(Icons.check_circle_rounded, color: colors.primary)
+                      : null,
+                    onTap: () => Navigator.pop(sheetContext, id),
+                  );
+                },
+              )),
+            ]),
+          ),
+        );
+      },
+    );
+    if (chosen != null && mounted && chosen != careId) {
+      setState(() => careId = chosen);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(widget.existing == null
         ? 'Crear horario' : 'Editar horario')),
-    body: ListView(padding: const EdgeInsets.fromLTRB(18, 12, 18, 36),
+    body: ListView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 30),
       children: [
-        Card(color: Theme.of(context).colorScheme.primaryContainer, child: Padding(
-          padding: const EdgeInsets.all(17),
-          child: Row(children: [
-            Icon(Icons.pets, color: Theme.of(context).colorScheme.primary, size: 28),
-            SizedBox(width: 12),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Recordatorio · ${widget.petName}',
-                    style: TextStyle(fontSize: 18,
-                        fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
-                SizedBox(height: 3),
-                Text('Elige un cuidado, su hora y los días de repetición.'),
-              ],
-            )),
-          ]),
-        )),
-        SizedBox(height: 22),
-        Text('1  ·  Elige el cuidado', style: TextStyle(
+        Text('Cuidado', style: TextStyle(
             fontSize: 17, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
         SizedBox(height: 9),
-        Text('Cuidado', style: TextStyle(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-          fontWeight: FontWeight.w600)),
-        const SizedBox(height: 7),
-        DropdownButtonFormField<String>(
-          isExpanded: true,
-          initialValue: careId,
-          decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.check_circle_outline),
+        Material(
+          color: Theme.of(context).colorScheme.surfaceContainerHigh,
+          shape: RoundedRectangleBorder(
+            side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+            borderRadius: BorderRadius.circular(17),
           ),
-          items: widget.careTypes.map((row) => DropdownMenuItem(
-            value: row['id'].toString(), child: Text(_careName(row)),
-          )).toList(),
-          onChanged: (value) => setState(() => careId = value),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(17),
+            onTap: widget.careTypes.length <= 1 ? null : selectCare,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 17),
+              child: Row(children: [
+                Icon(Icons.check_circle_outline,
+                  color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 14),
+                Expanded(child: Text(
+                  widget.careTypes.isEmpty ? 'Sin cuidados disponibles'
+                    : _careName(widget.careTypes.firstWhere(
+                      (row) => row['id'].toString() == careId,
+                      orElse: () => widget.careTypes.first,
+                    )),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                )),
+                if (widget.careTypes.length > 1)
+                  Icon(Icons.keyboard_arrow_down_rounded,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ]),
+            ),
+          ),
         ),
-        SizedBox(height: 23),
-        Text('2  ·  Elige la hora', style: TextStyle(
+        SizedBox(height: 18),
+        Text('Hora', style: TextStyle(
             fontSize: 17, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
         SizedBox(height: 9),
         Card(child: InkWell(
@@ -764,8 +1239,8 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
             ]),
           ),
         )),
-        SizedBox(height: 23),
-        Text('3  ·  Días de repetición', style: TextStyle(
+        SizedBox(height: 18),
+        Text('Repetir', style: TextStyle(
             fontSize: 17, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
         SizedBox(height: 5),
         Row(children: [
@@ -803,8 +1278,8 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
             );
           }),
         ),
-        SizedBox(height: 23),
-        Text('Nota opcional', style: TextStyle(
+        SizedBox(height: 18),
+        Text('Nota (opcional)', style: TextStyle(
             fontSize: 17, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
         SizedBox(height: 9),
         TextField(
@@ -818,7 +1293,8 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
             hintText: 'Ej. 1 taza de croquetas',
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 8),
+        const SizedBox(height: 18),
       ],
     ),
     bottomNavigationBar: _petCareRemindersFooter(
@@ -1340,6 +1816,8 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
             child: ListView(padding: EdgeInsets.fromLTRB(
               18, 12, 18, MediaQuery.viewPaddingOf(context).bottom + 104),
               children: [
+                // V33: la barra superior ya dice «Historial»;
+                // mostrar directamente resumen y periodo ahorra desplazamiento.
                 Card(color: Theme.of(context).colorScheme.primaryContainer, margin: EdgeInsets.zero,
                   child: Padding(padding: const EdgeInsets.all(17),
                     child: Row(children: [
@@ -1516,8 +1994,8 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
 
 /// Mantiene las acciones sobre la barra de gestos / botones Android.
 Widget _petCareRemindersFooter(BuildContext context, Widget button) {
-  final bottomInset = MediaQuery.of(context).viewPadding.bottom;
-  final bottomSpace = bottomInset < 48 ? 72.0 : bottomInset + 16.0;
+  final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+  final bottomSpace = bottomInset < 20 ? 24.0 : bottomInset + 14.0;
   return ColoredBox(
     color: Theme.of(context).colorScheme.surface,
     child: Padding(

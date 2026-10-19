@@ -20,6 +20,7 @@ import 'petcare_cloud_messaging.dart';
 // Los módulos `part` preservan el acceso a las clases internas y evitan un archivo de 4,400 líneas.
 part 'core/app_appearance.dart';
 part 'core/app_theme.dart';
+part 'core/premium_components.dart';
 part 'core/pet_shared.dart';
 part 'data/cloud_db.dart';
 part 'data/pet_catalog.dart';
@@ -28,11 +29,11 @@ part 'screens/pet_pages.dart';
 part 'screens/admin_pages.dart';
 part 'screens/settings_page.dart';
 
-const green = Color(0xFF257B54);
-const cream = Color(0xFFF8F6F1);
+const green = Color(0xFF13694D);
+const cream = Color(0xFFF9FAF6);
 const orange = Color(0xFFF2A65A);
-const ink = Color(0xFF193B32);
-const pale = Color(0xFFEAF5EF);
+const ink = Color(0xFF173A2D);
+const pale = Color(0xFFE8F3EB);
 
 
 /// Compilación especial para Fire Tablet, sin servicios de Google Play.
@@ -89,6 +90,23 @@ class PetCareApp extends StatelessWidget {
       themeMode: selectedMode,
       theme: buildPetCareTheme(Brightness.light),
       darkTheme: buildPetCareTheme(Brightness.dark),
+      // Mantener iconos y navegacion Android legibles sobre fondos negros.
+      // En Android 15+ el sistema puede controlar el fondo de la barra inferior.
+      builder: (context, child) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+            systemNavigationBarColor: isDark ? Colors.black : cream,
+            systemNavigationBarDividerColor: isDark ? Colors.black : cream,
+            systemNavigationBarIconBrightness:
+                isDark ? Brightness.light : Brightness.dark,
+            systemNavigationBarContrastEnforced: false,
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: const AuthGate(),
     ),
   );

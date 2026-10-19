@@ -19,166 +19,96 @@ class WelcomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
+    final c = Theme.of(context).colorScheme;
     return Scaffold(
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, viewport) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: viewport.maxHeight > 56
-                      ? viewport.maxHeight - 56
-                      : 0,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Column(
-                      children: [
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: colors.primaryContainer,
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            child: Text(
-                              'BIENVENIDO A PETCARE',
-                              style: TextStyle(
-                                color: colors.onPrimaryContainer,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        Container(
-                          height: 230,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                colors.primaryContainer,
-                                colors.surfaceContainerHigh,
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(32),
-                          ),
-                          child: Center(
-                            child: Image.asset(
-                              'assets/icon/petcare_icon.png',
-                              width: 145,
-                              height: 145,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 30),
-                        Text(
-                          'PetCare Connect',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: colors.onSurface,
-                            fontSize: 34,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -1,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Todo lo que necesitas para cuidar a tus mascotas, en un solo lugar.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: colors.onSurfaceVariant,
-                            fontSize: 16,
-                            height: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: const [
-                            Chip(
-                              avatar: Icon(Icons.pets, size: 18),
-                              label: Text('Mascotas'),
-                            ),
-                            Chip(
-                              avatar: Icon(Icons.favorite_outline, size: 18),
-                              label: Text('Cuidados'),
-                            ),
-                            Chip(
-                              avatar: Icon(Icons.notifications_none, size: 18),
-                              label: Text('Recordatorios'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 32),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          SizedBox(
-                            height: 56,
-                            child: FilledButton.icon(
-                              icon: const Icon(Icons.login_rounded),
-                              label: const Text('Iniciar sesión'),
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const AuthPage(login: true),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            height: 56,
-                            child: OutlinedButton.icon(
-                              icon: const Icon(Icons.person_add_alt_1_outlined),
-                              label: const Text('Crear cuenta'),
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const AuthPage(login: false),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          Text(
-                            'El bienestar de tus mascotas comienza aquí.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: colors.onSurfaceVariant,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+      body: SafeArea(child: LayoutBuilder(builder: (context, size) =>
+        SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(26, 30, 26, 32),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: size.maxHeight > 62 ? size.maxHeight - 62 : 0,
+            ),
+            child: Center(child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 9),
+                      decoration: BoxDecoration(color: c.primaryContainer,
+                        borderRadius: BorderRadius.circular(30)),
+                      child: Text('✦  TODO SU MUNDO, EN TUS MANOS',
+                        style: TextStyle(color: c.onPrimaryContainer,
+                          fontSize: 10.5, fontWeight: FontWeight.w900,
+                          letterSpacing: 0.9)),
+                    )),
+                  const SizedBox(height: 22),
+                  Container(
+                    height: 232,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [c.primaryContainer, c.surfaceContainerHigh],
                       ),
+                      borderRadius: BorderRadius.circular(35),
                     ),
-                  ],
-                ),
+                    child: Center(child: Image.asset(
+                      'assets/icon/petcare_icon.png',
+                      width: 148, height: 148, fit: BoxFit.contain,
+                    )),
+                  ),
+                  const SizedBox(height: 23),
+                  RichText(textAlign: TextAlign.center, text: TextSpan(children: [
+                    TextSpan(text: 'Amor que se cuida\n', style: TextStyle(
+                      fontSize: 34, height: 1.15, letterSpacing: -1.1,
+                      fontWeight: FontWeight.w900, color: c.onSurface)),
+                    TextSpan(text: 'cada día.', style: TextStyle(
+                      fontSize: 34, height: 1.15, letterSpacing: -1.1,
+                      fontWeight: FontWeight.w900, color: c.primary)),
+                  ])),
+                  const SizedBox(height: 15),
+                  Text('Sus cuidados, vacunas y recuerdos. Todo organizado '
+                    'para disfrutar más tiempo juntos.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: c.onSurfaceVariant,
+                      fontSize: 15.5, height: 1.5)),
+                  const SizedBox(height: 20),
+                  Wrap(alignment: WrapAlignment.center, spacing: 7,
+                    runSpacing: 7, children: const [
+                      Chip(avatar: Icon(Icons.pets_rounded, size: 17),
+                        label: Text('Mascotas')),
+                      Chip(avatar: Icon(Icons.favorite_outline, size: 17),
+                        label: Text('Cuidados')),
+                      Chip(avatar: Icon(Icons.notifications_none, size: 17),
+                        label: Text('Avisos')),
+                    ]),
+                  const SizedBox(height: 25),
+                  SizedBox(height: 56, child: FilledButton.icon(
+                    onPressed: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const AuthPage(login: true))),
+                    icon: const Icon(Icons.arrow_forward_rounded),
+                    label: const Text('Iniciar sesión'),
+                  )),
+                  const SizedBox(height: 12),
+                  SizedBox(height: 54, child: OutlinedButton.icon(
+                    onPressed: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const AuthPage(login: false))),
+                    icon: const Icon(Icons.person_add_alt_1_outlined),
+                    label: const Text('Crear cuenta'),
+                  )),
+                  const SizedBox(height: 20),
+                  Text('PetCare Connect',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: c.onSurfaceVariant, fontSize: 11)),
+                ],
               ),
-            );
-          },
+            )),
+          ),
         ),
-      ),
+      )),
     );
   }
 }
@@ -437,86 +367,345 @@ class _AuthPageState extends State<AuthPage> {
   void dispose() { name.dispose(); email.dispose(); pass.dispose(); super.dispose(); }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(backgroundColor: Colors.transparent),
-    body: SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Image.asset('assets/icon/petcare_icon.png',
-            height: 68, width: 68, fit: BoxFit.contain),
-        ),
-        SizedBox(height: 18),
-        Text(widget.login ? 'Bienvenido de nuevo' : 'Crea tu cuenta', style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold)),
-        SizedBox(height: 8),
-        Text(widget.login ? 'Tus mascotas se sincronizan de forma segura en la nube.' : 'Crea una cuenta para guardar tus mascotas en la nube.', style: TextStyle(color: adaptiveMuted(context))),
-        SizedBox(height: 30),
-        if (!widget.login) ...[
-          TextField(controller: name, decoration: InputDecoration(labelText: 'Tu nombre', prefixIcon: Icon(Icons.person_outline))),
-          SizedBox(height: 14),
-        ],
-        TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: InputDecoration(labelText: 'Correo electrónico', prefixIcon: Icon(Icons.email_outlined))),
-        SizedBox(height: 14),
-        TextField(
-          controller: pass,
-          obscureText: !showPassword,
-          enableSuggestions: false,
-          autocorrect: false,
-          decoration: InputDecoration(
-            labelText: 'Contraseña',
-            prefixIcon: Icon(Icons.lock_outline),
-            suffixIcon: IconButton(
-              tooltip: showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña',
-              onPressed: () => setState(() => showPassword = !showPassword),
-              icon: Icon(showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final isLogin = widget.login;
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text(''),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          keyboardDismissBehavior:
+              ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 36),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: AutofillGroup(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            colors.primaryContainer,
+                            colors.surfaceContainerHigh,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(26),
+                      ),
+                      child: Row(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(18),
+                            child: Image.asset(
+                              'assets/icon/petcare_icon.png',
+                              width: 74,
+                              height: 74,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'PETCARE CONNECT',
+                                  style: TextStyle(
+                                    color: colors.onPrimaryContainer,
+                                    fontSize: 12,
+                                    letterSpacing: 1,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Un espacio para cuidarlos',
+                                  style: TextStyle(
+                                    color: colors.onPrimaryContainer,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    Text(
+                      isLogin
+                          ? 'Qué bueno tenerte aquí.'
+                          : 'Comencemos juntos.',
+                      style: TextStyle(
+                        color: colors.onSurface,
+                        fontSize: 31,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.7,
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    Text(
+                      isLogin
+                          ? 'Inicia sesión para continuar cuidando a tus mascotas.'
+                          : 'Crea tu cuenta y organiza el cuidado de tus mascotas.',
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 15,
+                        height: 1.5,
+                      ),
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: colors.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: colors.outlineVariant,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            isLogin
+                                ? 'Accede a tu espacio'
+                                : 'Crea tu espacio',
+                            style: TextStyle(
+                              color: colors.onSurface,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+
+                          const SizedBox(height: 20),
+
+                          if (!isLogin) ...[
+                            TextField(
+                              controller: name,
+                              textCapitalization:
+                                  TextCapitalization.words,
+                              textInputAction: TextInputAction.next,
+                              autofillHints: const [
+                                AutofillHints.name
+                              ],
+                              decoration: const InputDecoration(
+                                labelText: 'Tu nombre',
+                                prefixIcon:
+                                    Icon(Icons.person_outline),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+
+                          TextField(
+                            controller: email,
+                            keyboardType:
+                                TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
+                            autofillHints: const [
+                              AutofillHints.email
+                            ],
+                            autocorrect: false,
+                            decoration: const InputDecoration(
+                              labelText: 'Correo electrónico',
+                              prefixIcon:
+                                  Icon(Icons.email_outlined),
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          TextField(
+                            controller: pass,
+                            obscureText: !showPassword,
+                            enableSuggestions: false,
+                            autocorrect: false,
+                            textInputAction: TextInputAction.done,
+                            autofillHints: isLogin
+                                ? const [AutofillHints.password]
+                                : const [AutofillHints.newPassword],
+                            decoration: InputDecoration(
+                              labelText: 'Contraseña',
+                              prefixIcon:
+                                  const Icon(Icons.lock_outline),
+                              suffixIcon: IconButton(
+                                tooltip: showPassword
+                                    ? 'Ocultar contraseña'
+                                    : 'Mostrar contraseña',
+                                onPressed: () => setState(
+                                  () => showPassword = !showPassword,
+                                ),
+                                icon: Icon(
+                                  showPassword
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          if (isLogin)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed:
+                                    busy ? null : resetPassword,
+                                child: const Text(
+                                  '¿Olvidaste tu contraseña?',
+                                ),
+                              ),
+                            ),
+
+                          const SizedBox(height: 18),
+
+                          SizedBox(
+                            height: 56,
+                            child: FilledButton.icon(
+                              onPressed: busy ? null : emailAuth,
+                              icon: Icon(
+                                isLogin
+                                    ? Icons.login_rounded
+                                    : Icons.person_add_alt_1,
+                              ),
+                              label: Text(
+                                busy
+                                    ? 'Espera...'
+                                    : isLogin
+                                        ? 'Iniciar sesión'
+                                        : 'Crear cuenta',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    if (!amazonBuild ||
+                        amazonFacebookEnabled) ...[
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          const Expanded(child: Divider()),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                            ),
+                            child: Text(
+                              'o continúa con',
+                              style: TextStyle(
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          const Expanded(child: Divider()),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    if (!amazonBuild) ...[
+                      SizedBox(
+                        height: 56,
+                        child: OutlinedButton.icon(
+                          onPressed: busy ? null : googleAuth,
+                          icon: const Icon(
+                            Icons.account_circle_outlined,
+                          ),
+                          label: const Text(
+                            'Continuar con Google',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    if (!amazonBuild ||
+                        amazonFacebookEnabled)
+                      SizedBox(
+                        height: 56,
+                        child: OutlinedButton.icon(
+                          onPressed: busy ? null : facebookAuth,
+                          icon: const Icon(Icons.facebook),
+                          label: const Text(
+                            'Continuar con Facebook',
+                          ),
+                        ),
+                      ),
+
+                    if (amazonBuild &&
+                        !amazonFacebookEnabled)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 20),
+                        child: Text(
+                          'En Fire Tablet puedes acceder con '
+                          'correo y contraseña. Los accesos '
+                          'sociales estarán disponibles '
+                          'después de verificar su compatibilidad.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: colors.onSurfaceVariant,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+
+                    const SizedBox(height: 22),
+
+                    TextButton(
+                      onPressed: busy
+                          ? null
+                          : () => Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => AuthPage(
+                                    login: !isLogin,
+                                  ),
+                                ),
+                              ),
+                      child: Text(
+                        isLogin
+                            ? '¿No tienes cuenta? Regístrate'
+                            : '¿Ya tienes cuenta? Inicia sesión',
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    Text(
+                      'El bienestar de tus mascotas '
+                      'comienza aquí.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
-        if (widget.login) Align(alignment: Alignment.centerRight, child: TextButton(onPressed: busy ? null : resetPassword, child: Text('¿Olvidaste tu contraseña?'))),
-        SizedBox(height: 10),
-        SizedBox(width: double.infinity, height: 55, child: FilledButton(onPressed: busy ? null : emailAuth, child: Text(busy ? 'Espera...' : widget.login ? 'Iniciar sesión' : 'Crear cuenta'))),
-        if (!amazonBuild || amazonFacebookEnabled) ...[
-          SizedBox(height: 18),
-          Row(children: [
-            Expanded(child: Divider()),
-            Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('o')),
-            Expanded(child: Divider()),
-          ]),
-          SizedBox(height: 18),
-        ],
-        if (!amazonBuild) ...[
-          SizedBox(width: double.infinity, height: 55,
-            child: OutlinedButton.icon(
-              onPressed: busy ? null : googleAuth,
-              icon: Icon(Icons.account_circle_outlined),
-              label: Text('Continuar con Google'),
-            ),
-          ),
-          SizedBox(height: 12),
-        ],
-        if (!amazonBuild || amazonFacebookEnabled)
-          SizedBox(
-            width: double.infinity,
-            height: 55,
-            child: OutlinedButton.icon(
-              onPressed: busy ? null : facebookAuth,
-              icon: Icon(Icons.facebook),
-              label: Text('Continuar con Facebook'),
-            ),
-          ),
-        if (amazonBuild && !amazonFacebookEnabled)
-          Padding(
-            padding: EdgeInsets.only(top: 12),
-            child: Text(
-              'En Fire Tablet puedes entrar con tu correo y contraseña. '
-              'Los accesos sociales estarán disponibles después de verificar '
-              'su compatibilidad con este dispositivo.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: adaptiveMuted(context), fontSize: 13),
-            ),
-          ),
-      ]),
-    ),
-  );
+      ),
+    );
+  }
 }
