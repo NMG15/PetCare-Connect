@@ -268,6 +268,7 @@ const careIconChoices = <String, String>{
   'vitamins': 'Vitaminas / suplemento',
   'vet': 'Veterinario',
   'check': 'General',
+  'pets': 'Huellita / mascota',
 };
 
 String careLabel(String value) =>
@@ -298,6 +299,7 @@ IconData careIcon(String value) =>
       'aquarium': Icons.water,
       'vitamins': Icons.science,
       'check': Icons.check_circle,
+      'pets': Icons.pets_rounded,
     }[value] ??
     Icons.check_circle;
 
@@ -318,6 +320,93 @@ List<Map<String, dynamic>> defaultCareForSpecies(String species) {
       })
       .map((item) => Map<String, dynamic>.from(item))
       .toList();
+}
+
+// V35: el catalogo compartido se conserva; el usuario solo modifica
+// la presentacion de su PROPIA mascota. El ID se mantiene estable para que
+// horarios e historial no pierdan su relacion original.
+String normalizeCareName(String value) =>
+    value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+bool careNameTaken(Iterable<Map<String, dynamic>> catalog,
+    String candidate, {String? exceptId}) {
+  final name = normalizeCareName(candidate);
+  return name.isNotEmpty && catalog.any((item) =>
+      (item['id'] ?? '').toString() != exceptId &&
+      normalizeCareName(careTypeLabel(item)) == name);
+}
+
+String effectiveReminderCareLabel(Map<String, dynamic> pet,
+    String careId, String savedLabel) {
+  final overrides = pet['careOverrides'];
+  if (overrides is Map && overrides[careId] is Map) {
+    final label = (overrides[careId]['label'] ?? '').toString().trim();
+    if (label.isNotEmpty && label.length <= 50) { return label; }
+  }
+  final personal = pet['personalCareTypes'];
+  if (personal is List) {
+    for (final row in personal) {
+      if (row is Map && (row['id'] ?? '').toString() == careId) {
+        final label = (row['label'] ?? '').toString().trim();
+        if (label.isNotEmpty && label.length <= 50) { return label; }
+      }
+    }
+  }
+  return savedLabel.trim().isNotEmpty ? savedLabel : careLabel(careId);
+}
+
+List<Map<String, dynamic>> mergedCareCatalogForPet(
+    List<Map<String, dynamic>> catalog, Map<String, dynamic> pet) {
+  final result = catalog.map((e) => Map<String, dynamic>.from(e)).toList();
+  final ids = result.map((e) => (e['id'] ?? '').toString()).toSet();
+  final rawOverrides = pet['careOverrides'];
+  if (rawOverrides is Map) {
+    for (final row in result) {
+      final id = (row['id'] ?? '').toString();
+      final custom = rawOverrides[id];
+      if (custom is! Map) { continue; }
+      final name = (custom['label'] ?? '').toString().trim();
+      final icon = (custom['icon'] ?? '').toString();
+      final originalLabel = careTypeLabel(row);
+      final originalIcon = (row['icon'] ?? id).toString();
+      var changed = false;
+      if (name.isNotEmpty && name.length <= 45) {
+        row['label'] = name;
+        changed = true;
+      }
+      if (careIconChoices.containsKey(icon)) {
+        row['icon'] = icon;
+        changed = true;
+      }
+      if (changed) {
+        row['originalLabel'] = originalLabel;
+        row['originalIcon'] = originalIcon;
+        row['userEdited'] = true;
+      }
+    }
+  }
+  final raw = pet['personalCareTypes'];
+  if (raw is List) {
+    for (final value in raw.take(30)) {
+      if (value is! Map) { continue; }
+      final id = (value['id'] ?? '').toString();
+      final label = (value['label'] ?? '').toString().trim();
+      if (!id.startsWith('personal_') || ids.contains(id) ||
+          label.isEmpty || label.length > 45) {
+        continue;
+      }
+      ids.add(id);
+      final rawIcon = (value['icon'] ?? 'pets').toString();
+      result.add({
+        'id': id,
+        'label': label,
+        'icon': careIconChoices.containsKey(rawIcon) ? rawIcon : 'pets',
+        'active': true,
+        'personal': true,
+      });
+    }
+  }
+  return result;
 }
 
 Map<String, dynamic>? catalogCareById(

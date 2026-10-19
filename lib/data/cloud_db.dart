@@ -221,6 +221,14 @@ class CloudDb {
     }).toList();
   }
 
+  /// Incluye los cuidados personales de UNA mascota, nunca los publica
+  /// para otros usuarios ni modifica el catalogo del administrador.
+  Future<List<Map<String, dynamic>>> careCatalogForPet(
+      String species, Map<String, dynamic> pet) async {
+    final base = await careCatalogForSpecies(species);
+    return mergedCareCatalogForPet(base, pet);
+  }
+
   Future<void> ensureDefaultCareCatalog() async {
     final marker = _db.collection('appConfig').doc('careCatalog');
     final markerDoc = await marker.get();

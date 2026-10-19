@@ -56,17 +56,31 @@ void main() {
         ),
       );
 
-      expect(find.text('Recordatorio · Kira'), findsOneWidget);
+      // V37 simplifica el encabezado: ya no muestra una tarjeta
+      // redundante con 'Recordatorio · mascota'. El editor debe seguir
+      // mostrando el cuidado, la hora y la seleccion de dias.
+      expect(find.text('Crear horario'), findsOneWidget);
+      expect(find.text('Alimentación'), findsOneWidget);
       expect(find.text('5:00 p. m.'), findsOneWidget);
-      // La sección de días está más abajo en un ListView que construye
-      // elementos bajo demanda. Primero desplázate hasta ella y luego búscala.
+
+      // El ListView crea contenido conforme se desplaza.
       await tester.scrollUntilVisible(
-        find.textContaining('Días de repetición'),
-        220,
+        find.text('Repetir'),
+        180,
         scrollable: find.byType(Scrollable).first,
       );
-      expect(find.textContaining('Días de repetición'), findsOneWidget);
+      expect(find.text('Repetir'), findsOneWidget);
+      expect(find.text('Sin días seleccionados'), findsOneWidget);
 
+      await tester.scrollUntilVisible(
+        find.widgetWithText(ActionChip, 'Todos los días'),
+        180,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.widgetWithText(ActionChip, 'Todos los días'));
+      await tester.pumpAndSettle();
+      expect(find.text('Sin días seleccionados'), findsNothing);
+      expect(find.text('Todos los días'), findsWidgets);
       expect(find.text('Guardar horario'), findsOneWidget);
       expect(find.text('Probar notificación ahora'), findsNothing);
     },

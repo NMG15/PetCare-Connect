@@ -68,104 +68,23 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
-  Widget summaryBox(String value, String label) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardTheme.color,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 23,
-                fontWeight: FontWeight.w800,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-            SizedBox(height: 3),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                color: adaptiveMuted(context),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget adminOption({
     required String title,
     required String description,
-    required String buttonText,
     required IconData icon,
     required VoidCallback onPressed,
-  }) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: adaptivePale(context),
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Icon(icon, color: Theme.of(context).colorScheme.primary),
-                ),
-                SizedBox(width: 13),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                      color: adaptiveInk(context),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 12),
-            Text(
-              description,
-              style: TextStyle(
-                color: adaptiveMuted(context),
-                height: 1.35,
-              ),
-            ),
-            SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: FilledButton(
-                onPressed: onPressed,
-                child: Text(buttonText),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  }) => PetCareActionTile(
+    title: title,
+    subtitle: description,
+    icon: icon,
+    onTap: onPressed,
+  );
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Administración', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Administración'),
         actions: [
           IconButton(
             tooltip: 'Actualizar estadísticas',
@@ -180,68 +99,58 @@ class _AdminPageState extends State<AdminPage> {
           ),
         ],
       ),
+      bottomNavigationBar: PetCareBottomNav(
+        selected: 0,
+        admin: true,
+        onSelected: (index) async {
+          if (index == 0) return;
+          if (index == 1) {
+            await Navigator.push(context, MaterialPageRoute(
+              builder: (_) => AdminUsersListPage(users: users)));
+          } else if (index == 2) {
+            await Navigator.push(context, MaterialPageRoute(
+              builder: (_) => const AdminCareCatalogPage()));
+          } else {
+            await Navigator.push(context, MaterialPageRoute(
+              builder: (_) => const AppearanceSettingsPage()));
+          }
+          if (mounted && index != 3) await load();
+        },
+      ),
       body: loading
           ? Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: load,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(18, 10, 18, 32),
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 32),
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [ink, green],
-                      ),
-                      borderRadius: BorderRadius.circular(26),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Panel del administrador',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 23,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        SizedBox(height: 7),
-                        Text(
-                          'Aquí administras usuarios, mascotas y las opciones de cuidado que aparecen en PetCare.',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            height: 1.35,
-                          ),
-                        ),
-                      ],
-                    ),
+                  const PetCareSignatureHero(
+                    eyebrow: 'Panel PetCare · Administración',
+                    title: 'Tu comunidad,\nen buenas manos.',
+                    subtitle: 'Gestiona usuarios, mascotas y cuidados '
+                        'desde un solo lugar.',
+                    icon: Icons.admin_panel_settings_outlined,
                   ),
                   SizedBox(height: 14),
-                  Row(
-                    children: [
-                      summaryBox('${users.length}', 'Usuarios'),
-                      SizedBox(width: 8),
-                      summaryBox('$petsCount', 'Mascotas'),
-                      SizedBox(width: 8),
-                      summaryBox('$careTypesCount', 'Cuidados'),
-                    ],
+                  Row(children: [
+                    PetCareMetric(value: '${users.length}',
+                      label: 'Usuarios', icon: Icons.people_outline),
+                    const SizedBox(width: 8),
+                    PetCareMetric(value: '$petsCount',
+                      label: 'Mascotas', icon: Icons.pets_outlined),
+                    const SizedBox(width: 8),
+                    PetCareMetric(value: '$careTypesCount',
+                      label: 'Cuidados', icon: Icons.favorite_outline),
+                  ]),
+                  SizedBox(height: 18),
+                  const PetCareSectionTitle(
+                    title: 'Gestión rápida',
+                    caption: 'Herramientas para cuidar tu comunidad.',
                   ),
-                  SizedBox(height: 24),
-                  Text(
-                    '¿Qué quieres administrar?',
-                    style: TextStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.w800,
-                      color: adaptiveInk(context),
-                    ),
-                  ),
-                  SizedBox(height: 12),
                   adminOption(
                     title: 'Usuarios y mascotas',
                     description:
                         'Entra a un usuario para ver sus mascotas, editar sus datos, agregar mascotas y revisar sus cuidados.',
-                    buttonText: 'ABRIR USUARIOS Y MASCOTAS',
                     icon: Icons.people_alt_outlined,
                     onPressed: () async {
                       await Navigator.push(
@@ -258,7 +167,6 @@ class _AdminPageState extends State<AdminPage> {
                     title: 'Tipos de cuidado',
                     description:
                         'Decide qué cuidados pueden registrar los usuarios. Crear uno nuevo NO cambia los cuidados que ya existen.',
-                    buttonText: 'ABRIR TIPOS DE CUIDADO',
                     icon: Icons.checklist_rounded,
                     onPressed: () async {
                       await Navigator.push(
@@ -309,6 +217,12 @@ class _AdminUsersListPageState extends State<AdminUsersListPage> {
       body: ListView(
         padding: const EdgeInsets.all(18),
         children: [
+          const PetCarePageIntro(
+            eyebrow: 'Gestiona tu comunidad',
+            title: 'Usuarios y mascotas',
+            subtitle: 'Busca cuentas y consulta las mascotas asociadas.',
+            icon: Icons.people_outline_rounded,
+          ),
           TextField(
             controller: search,
             onChanged: (value) => setState(() => query = value),
@@ -441,9 +355,14 @@ class _AdminUserPageState extends State<AdminUserPage> {
             onPressed: () => Navigator.pop(c, false),
             child: Text('Cancelar'),
           ),
-          FilledButton(
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(c).colorScheme.error,
+              foregroundColor: Theme.of(c).colorScheme.onError,
+            ),
             onPressed: () => Navigator.pop(c, true),
-            child: Text('Eliminar mascota'),
+            icon: const Icon(Icons.delete_outline_rounded),
+            label: const Text('Eliminar mascota'),
           ),
         ],
       ),
@@ -492,16 +411,18 @@ class _AdminUserPageState extends State<AdminUserPage> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => editPet(),
-        icon: Icon(Icons.add),
-        label: Text('Agregar mascota'),
-      ),
+      // V33: acción dentro del contenido: no cubre tarjetas al desplazarse.
       body: loading
           ? Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.fromLTRB(18, 12, 18, 100),
               children: [
+                PetCarePageIntro(
+                  eyebrow: 'Cuenta de tu comunidad',
+                  title: userName.isEmpty ? 'Perfil del usuario' : userName,
+                  subtitle: 'Revisa su información y sus mascotas registradas.',
+                  icon: Icons.account_circle_outlined,
+                ),
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(18),
@@ -560,6 +481,15 @@ class _AdminUserPageState extends State<AdminUserPage> {
                   ],
                 ),
                 SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => editPet(),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Agregar mascota'),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 if (pets.isEmpty)
                   Card(
                     child: Padding(
@@ -631,9 +561,13 @@ class _AdminUserPageState extends State<AdminUserPage> {
                               ),
                               SizedBox(width: 8),
                               Expanded(
-                                child: TextButton(
+                                child: TextButton.icon(
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Theme.of(context).colorScheme.error,
+                                  ),
                                   onPressed: () => removePet(pet),
-                                  child: Text('Eliminar'),
+                                  icon: const Icon(Icons.delete_outline, size: 18),
+                                  label: const Text('Eliminar'),
                                 ),
                               ),
                             ],
@@ -918,6 +852,8 @@ class _AdminPetEditorPageState extends State<AdminPetEditorPage> {
           Text('Especie', style: TextStyle(color: adaptiveMuted(context))),
           const SizedBox(height: 7),
           DropdownButtonFormField<String>(
+            menuMaxHeight: 300,
+            isExpanded: true,
             initialValue: species,
             decoration: InputDecoration(
               prefixIcon: Icon(Icons.pets),
@@ -961,6 +897,8 @@ class _AdminPetEditorPageState extends State<AdminPetEditorPage> {
           Text('Sexo', style: TextStyle(color: adaptiveMuted(context))),
           const SizedBox(height: 7),
           DropdownButtonFormField<String>(
+            menuMaxHeight: 300,
+            isExpanded: true,
             initialValue: sex,
             decoration: const InputDecoration(),
             items: ['Macho', 'Hembra', 'No especificado']
@@ -1032,8 +970,9 @@ class _AdminPetEditorPageState extends State<AdminPetEditorPage> {
           Text(coatLabel, style: TextStyle(color: adaptiveMuted(context))),
           const SizedBox(height: 7),
           DropdownButtonFormField<String>(
-            key: ValueKey('admin-pelaje-$species'),
+            menuMaxHeight: 300,
             isExpanded: true,
+            key: ValueKey('admin-pelaje-$species'),
             initialValue: customCoat ? 'Otro (especificar)'
                 : petCoatOptions(species).contains(coat.text) ? coat.text : null,
             decoration: const InputDecoration(prefixIcon: Icon(Icons.tune)),
@@ -1289,39 +1228,15 @@ class _AdminCareCatalogPageState extends State<AdminCareCatalogPage> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(18, 14, 18, 100),
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: scheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(22),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.medical_services_outlined,
-                              color: scheme.onPrimaryContainer, size: 27),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Catálogo de cuidados',
-                                    style: TextStyle(fontSize: 18,
-                                        fontWeight: FontWeight.w800,
-                                        color: scheme.onPrimaryContainer)),
-                                const SizedBox(height: 5),
-                                Text('Crea, edita y organiza las opciones que verán las personas.',
-                                    style: TextStyle(
-                                      height: 1.3,
-                                      color: scheme.onPrimaryContainer,
-                                    )),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                    const PetCarePageIntro(
+                      eyebrow: 'Catálogo general',
+                      title: 'Organiza los cuidados',
+                      subtitle: 'Crea y administra las actividades disponibles.',
+                      icon: Icons.health_and_safety_outlined,
                     ),
-                    const SizedBox(height: 14),
+                    // El encabezado anterior ya explica el catálogo;
+                    // evitamos repetirlo y mostramos los filtros antes.
+                    const SizedBox(height: 6),
                     SizedBox(
                       height: 54,
                       child: FilledButton.icon(
@@ -1339,26 +1254,19 @@ class _AdminCareCatalogPageState extends State<AdminCareCatalogPage> {
                             color: scheme.onSurface,
                           )),
                       const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: speciesFilter,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Especie',
-                        ),
-                        items: ['Todas', ...allPetSpecies]
-                            .map((species) => DropdownMenuItem<String>(
-                                  value: species,
-                                  child: Text(species == 'Todas'
-                                      ? 'Todas las especies'
-                                      : '${emojiFor(species)}  $species',
-                                      overflow: TextOverflow.ellipsis),
-                                ))
-                            .toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() => speciesFilter = value);
-                          }
-                        },
+                      PetCareCompactSelector(
+                        label: 'Filtrar por especie',
+                        value: speciesFilter,
+                        icon: Icons.pets_outlined,
+                        options: ['Todas', ...allPetSpecies]
+                            .map((species) => PetCareSelectOption(
+                              value: species,
+                              label: species == 'Todas'
+                                  ? 'Todas las especies'
+                                  : '${emojiFor(species)}  $species',
+                              icon: Icons.pets_outlined,
+                            )).toList(),
+                        onChanged: (choice) => setState(() => speciesFilter = choice),
                       ),
                       const SizedBox(height: 14),
                       SingleChildScrollView(
@@ -1834,30 +1742,17 @@ class _AdminCareTypeEditorPageState
                   style: TextStyle(fontSize: 13,
                       color: scheme.onSurfaceVariant)),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: icon,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  hintText: 'Selecciona un icono',
-                ),
-                items: careIconChoices.entries
-                    .map((entry) => DropdownMenuItem<String>(
-                          value: entry.key,
-                          child: Row(
-                            children: [
-                              Icon(careIcon(entry.key), size: 22,
-                                  color: scheme.primary),
-                              const SizedBox(width: 12),
-                              Expanded(child: Text(entry.value,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(color: scheme.onSurface))),
-                            ],
-                          ),
-                        ))
-                    .toList(),
-                onChanged: (value) {
-                  if (value != null) setState(() => icon = value);
-                },
+              PetCareCompactSelector(
+                label: 'Icono del cuidado',
+                value: icon,
+                icon: Icons.palette_outlined,
+                options: careIconChoices.entries.map((entry) =>
+                  PetCareSelectOption(
+                    value: entry.key,
+                    label: entry.value,
+                    icon: careIcon(entry.key),
+                  )).toList(),
+                onChanged: (choice) => setState(() => icon = choice),
               ),
             ]),
             const SizedBox(height: 14),
@@ -2055,28 +1950,16 @@ class _AdminCareRecordEditorPageState
                 ),
               )
             else
-              DropdownButtonFormField<String>(
-                initialValue: selectedId,
-                decoration: InputDecoration(
-                  labelText: 'Tipo de cuidado',
-                ),
-                items: widget.careTypes
-                    .map(
-                      (row) => DropdownMenuItem(
-                        value: row['id'].toString(),
-                        child: Row(
-                          children: [
-                            Icon(careTypeIcon(row), size: 20),
-                            SizedBox(width: 10),
-                            Text(careTypeLabel(row)),
-                          ],
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  setState(() => selectedId = value);
-                },
+              PetCareCompactSelector(
+                label: 'Tipo de cuidado',
+                value: selectedId,
+                icon: Icons.health_and_safety_outlined,
+                options: widget.careTypes.map((row) => PetCareSelectOption(
+                  value: row['id'].toString(),
+                  label: careTypeLabel(row),
+                  icon: careTypeIcon(row),
+                )).toList(),
+                onChanged: (choice) => setState(() => selectedId = choice),
               ),
             SizedBox(height: 12),
             TextField(
@@ -2137,8 +2020,8 @@ class _AdminPetPageState extends State<AdminPetPage> {
       widget.userId,
       widget.pet['id'].toString(),
     );
-    final types = await CloudDb.instance.careCatalogForSpecies(
-      (widget.pet['species'] ?? '').toString(),
+    final types = await CloudDb.instance.careCatalogForPet(
+      (widget.pet['species'] ?? '').toString(), widget.pet,
     );
 
     if (mounted) {
@@ -2182,9 +2065,14 @@ class _AdminPetPageState extends State<AdminPetPage> {
             onPressed: () => Navigator.pop(c, false),
             child: Text('Cancelar'),
           ),
-          FilledButton(
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(c).colorScheme.error,
+              foregroundColor: Theme.of(c).colorScheme.onError,
+            ),
             onPressed: () => Navigator.pop(c, true),
-            child: Text('Eliminar registro'),
+            icon: const Icon(Icons.delete_outline_rounded),
+            label: const Text('Eliminar registro'),
           ),
         ],
       ),
@@ -2216,17 +2104,18 @@ class _AdminPetPageState extends State<AdminPetPage> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed:
-            careTypes.isEmpty ? null : () => editCare(),
-        icon: Icon(Icons.add),
-        label: Text('Agregar cuidado'),
-      ),
+      // V33: sin FAB flotante para que no se superponga a registros.
       body: loading
           ? Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.fromLTRB(18, 12, 18, 100),
               children: [
+                PetCarePageIntro(
+                  eyebrow: 'Seguimiento de salud',
+                  title: 'Cuidados de $petName',
+                  subtitle: 'Consulta y registra las actividades de esta mascota.',
+                  icon: Icons.favorite_outline,
+                ),
                 Card(
                   color: adaptivePale(context),
                   child: Padding(
@@ -2282,6 +2171,15 @@ class _AdminPetPageState extends State<AdminPetPage> {
                   style: TextStyle(color: adaptiveMuted(context)),
                 ),
                 SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: careTypes.isEmpty ? null : () => editCare(),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Agregar cuidado'),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 if (careTypes.isEmpty)
                   Card(
                     child: Padding(

@@ -8,13 +8,20 @@ const _careTypes = <Map<String, dynamic>>[
 ];
 
 Future<void> openWeekdays(WidgetTester tester) async {
+  // V32 tiene mas espacio vertical en el formulario. Un ListView construye
+  // sus hijos de manera diferida: el titulo puede estar visible mientras
+  // ActionChip y FilterChip todavia no forman parte del arbol de widgets.
+  // Avanzar hasta el primer dia hace que se construya toda la seccion.
   await tester.scrollUntilVisible(
-    find.textContaining('Días de repetición'),
-    220,
+    find.text('Lun'),
+    160,
     scrollable: find.byType(Scrollable).first,
   );
+  await tester.pumpAndSettle();
   await tester.ensureVisible(find.byType(ActionChip));
   await tester.pumpAndSettle();
+  expect(find.byType(ActionChip), findsOneWidget);
+  expect(find.byType(FilterChip), findsNWidgets(7));
 }
 
 void main() {
