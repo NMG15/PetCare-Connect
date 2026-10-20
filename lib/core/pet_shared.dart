@@ -1,8 +1,6 @@
-// PetCare Connect: módulo del mismo paquete Dart; comparte los componentes internos.
 part of '../main.dart';
 
 
-/// Mantiene los valores anteriores guardados en Firestore y corrige el singular.
 String petAgeLabel(Object? value) {
   final raw = (value ?? '').toString().trim();
   if (raw.isEmpty) return '';
@@ -28,7 +26,6 @@ List<String> petCoatOptions(String species) {
     'Doble', 'Sin pelo', 'No aplica'];
 }
 
-/// Permite combinar varios colores y mantener también colores personalizados.
 Future<String?> choosePetColors(BuildContext context, String current) async {
   return showModalBottomSheet<String>(
     context: context,

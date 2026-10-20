@@ -7,7 +7,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-/// Maneja mensajes FCM recibidos en segundo plano.
 @pragma('vm:entry-point')
 Future<void> petCareFirebaseMessagingBackgroundHandler(
   RemoteMessage message,
@@ -15,14 +14,12 @@ Future<void> petCareFirebaseMessagingBackgroundHandler(
   await Firebase.initializeApp();
 }
 
-/// Registra el manejador global de mensajes en segundo plano.
 void registerPetCareCloudBackgroundHandler() {
   FirebaseMessaging.onBackgroundMessage(
     petCareFirebaseMessagingBackgroundHandler,
   );
 }
 
-/// Gestión de notificaciones push mediante Firebase Cloud Messaging.
 class PetCareCloudMessaging {
   PetCareCloudMessaging._();
   static final PetCareCloudMessaging instance = PetCareCloudMessaging._();
@@ -60,7 +57,6 @@ class PetCareCloudMessaging {
     ),
   );
 
-  /// Prepara el canal y escucha los mensajes recibidos con la app abierta.
   Future<void> init() async {
     if (_initialized || (!Platform.isAndroid && !Platform.isIOS)) return;
 
@@ -89,7 +85,6 @@ class PetCareCloudMessaging {
     _initialized = true;
   }
 
-  /// Registra el dispositivo para recibir notificaciones push.
   Future<void> registerForCurrentUser() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -161,7 +156,6 @@ class PetCareCloudMessaging {
     );
   }
 
-  /// Desvincula el token FCM de la sesión actual.
   Future<void> unregisterCurrentUser() async {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -176,14 +170,12 @@ class PetCareCloudMessaging {
           'fcmUpdatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       } catch (_) {
-        // El cierre de sesión puede continuar aunque no haya conexión.
       }
     }
 
     try {
       await _messaging.deleteToken();
     } catch (_) {
-      // Firebase generará un token nuevo en el siguiente inicio de sesión.
     }
   }
 

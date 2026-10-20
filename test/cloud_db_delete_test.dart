@@ -69,7 +69,6 @@ void main() {
     await usuario.set({'name': 'Usuario de prueba'});
     await mascota.set({'name': 'Firulais'});
 
-    // Crear 401 cuidados en lotes pequeños.
     for (var inicio = 0; inicio < 401; inicio += 200) {
       final lote = firestore.batch();
       final limite = inicio + 200 < 401 ? inicio + 200 : 401;
@@ -85,8 +84,6 @@ void main() {
 
     await mascota.collection('reminders').doc('vacuna').set({'name': 'Vacuna'});
 
-    // Simular que el primer lote ya fue eliminado,
-    // pero la operacion se interrumpio antes de terminar.
     final primerLote = firestore.batch();
 
     for (var i = 0; i < 400; i++) {
@@ -95,13 +92,10 @@ void main() {
 
     await primerLote.commit();
 
-    // La mascota debe seguir existiendo.
     expect((await mascota.get()).exists, isTrue);
 
-    // Reintentar utilizando nuestra funcion real.
     await cloudDb.adminDeletePet('usuario_reintento', 'firulais_reintento');
 
-    // Comprobar que termino sin eliminar al propietario.
     expect((await usuario.get()).exists, isTrue);
     expect((await mascota.get()).exists, isFalse);
 

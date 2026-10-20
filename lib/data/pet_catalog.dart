@@ -1,4 +1,3 @@
-// PetCare Connect: módulo del mismo paquete Dart; comparte los componentes internos.
 part of '../main.dart';
 
 const speciesCatalog = <String, List<String>>{
@@ -322,9 +321,6 @@ List<Map<String, dynamic>> defaultCareForSpecies(String species) {
       .toList();
 }
 
-// V35: el catalogo compartido se conserva; el usuario solo modifica
-// la presentacion de su PROPIA mascota. El ID se mantiene estable para que
-// horarios e historial no pierdan su relacion original.
 String normalizeCareName(String value) =>
     value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 

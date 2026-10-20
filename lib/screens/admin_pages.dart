@@ -1,4 +1,3 @@
-// PetCare Connect: módulo del mismo paquete Dart; comparte los componentes internos.
 part of '../main.dart';
 
 class AdminPage extends StatefulWidget {
@@ -30,7 +29,6 @@ class _AdminPageState extends State<AdminPage> {
     try {
       await CloudDb.instance.ensureDefaultCareCatalog();
     } catch (_) {
-      // El panel puede seguir abriendo aunque Firebase esté momentáneamente lento.
     }
 
     try {
@@ -411,7 +409,6 @@ class _AdminUserPageState extends State<AdminUserPage> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
-      // V33: acción dentro del contenido: no cubre tarjetas al desplazarse.
       body: loading
           ? Center(child: CircularProgressIndicator())
           : ListView(
@@ -1014,8 +1011,6 @@ class _AdminPetEditorPageState extends State<AdminPetEditorPage> {
 }
 
 
-/// Panel con superficie Material propia para ListTile y SwitchListTile.
-/// Evita ocultar los efectos de selección detrás de un DecoratedBox.
 Widget _adminCarePanel(BuildContext context, List<Widget> children) {
   final scheme = Theme.of(context).colorScheme;
   return Material(
@@ -1234,8 +1229,6 @@ class _AdminCareCatalogPageState extends State<AdminCareCatalogPage> {
                       subtitle: 'Crea y administra las actividades disponibles.',
                       icon: Icons.health_and_safety_outlined,
                     ),
-                    // El encabezado anterior ya explica el catálogo;
-                    // evitamos repetirlo y mostramos los filtros antes.
                     const SizedBox(height: 6),
                     SizedBox(
                       height: 54,
@@ -2104,7 +2097,6 @@ class _AdminPetPageState extends State<AdminPetPage> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
-      // V33: sin FAB flotante para que no se superponga a registros.
       body: loading
           ? Center(child: CircularProgressIndicator())
           : ListView(

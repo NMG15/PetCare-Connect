@@ -12,7 +12,6 @@
   const params = new URLSearchParams(location.search);
   const mode = params.get('mode');
   const oobCode = params.get('oobCode');
-  // Evita que el código de un solo uso quede visible en el historial al abrir la pantalla.
   if (oobCode) window.history.replaceState(null, '', location.pathname);
 
   if (!mode || !oobCode) {
