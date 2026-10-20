@@ -1,41 +1,60 @@
-# 🧪 Informe de evaluación · Julio
+# 🐾 Mi evaluación de PetCare Connect V37
 
-**Cuenta de GitHub:** `@Julio10Mon`  
-**Aplicación:** PetCare Connect V37 (`0.21.8+37`)  
-**Fecha de revisión:** _(completar)_  
-**Equipo / versión de Android:** _(completar)_
+**Evaluador:** Julio (`@Julio10Mon`)<br>
+**Fecha en que hice las pruebas:** __________________<br>
+**Mi teléfono / versión de Android:** __________________<br>
+**Versión revisada:** PetCare Connect `0.21.8 (37)`
 
-## Resultados de las pruebas
+## ¿Cómo me fue con las pruebas?
 
-Marca **Correcto / Error / No probado**. Una sola frase por caso es suficiente si todo salió bien.
+Revisé los siguientes aspectos de PetCare. En **Resultado** escribiré **Funcionó / Encontré un problema / No pude probarlo**, y en **Mi comentario** explicaré con mis palabras lo que observé.
 
-| ID | Resultado | Observación breve (qué pasó / qué esperabas) |
-|---|---|---|
-| PC-01 | Pendiente | Instalación, acceso y opción de recuperar contraseña: ... |
-| PC-02 | Pendiente | Mascotas: ... |
-| PC-03 | Pendiente | Cuidados y personalización: ... |
-| PC-04 | Pendiente | Horarios y notificaciones: ... |
-| PC-05 | Pendiente | Historial y calendario: ... |
-| PC-06 | Pendiente | Modo claro/oscuro y diseño: ... |
-| PC-07 *(opcional)* | No probado | Administración/permisos (solo con autorización): ... |
+| Prueba | Resultado | Mi comentario |
+|:--|:--|:--|
+| 1. Instalación | Por revisar | — |
+| 2. Registro e inicio de sesión | Por revisar | — |
+| 3. Recuperar contraseña | Por revisar | — |
+| 4. Mis mascotas | Por revisar | — |
+| 5. Cuidados básicos | Por revisar | — |
+| 6. Personalizar cuidados | Por revisar | — |
+| 7. Horarios y recordatorios | Por revisar | — |
+| 8. Historial y calendario | Por revisar | — |
+| 9. Apariencia: claro y oscuro | Por revisar | — |
+| 10. Experiencia general | Por revisar | — |
 
-## ¿Encontraste algún problema?
+## ¿Encontré algún problema?
 
-**Si no encontraste errores, escribe «No encontré errores durante estas pruebas».**
+No hace falta encontrar un error en cada prueba. Aquí puedo escribir los que encontré, aunque no estén en la tabla anterior.
 
-- **Caso:** PC-__
-- **Qué hice:** ...
-- **Qué esperaba:** ...
-- **Qué sucedió:** ...
-- **Cómo reproducirlo (si aplica):** ...
-- **Captura o enlace a Issue (opcional y sin datos personales):** ...
+**¿En qué parte de la aplicación pasó?**<br>
+Escribir aquí...
 
-## Opinión final
+**¿Qué estaba intentando hacer?**<br>
+Escribir aquí...
 
-**Diseño (1-5):** _  ·  **Facilidad de uso (1-5):** _  ·  **Funcionamiento (1-5):** _
+**¿Qué ocurrió y qué esperaba que sucediera?**<br>
+Escribir aquí...
 
-**¿Qué mejorarías?** _(1 o 2 propuestas concretas)_
+**¿Tengo una captura? (opcional)**<br>
+Pegar enlace o añadir imagen sin información privada...
 
-**Conclusión (2-3 líneas):** _(¿recomendarías la app para uso diario?, ¿por qué?)_
+> Si no encontré problemas, puedo escribir: **No encontré errores durante mis pruebas.** Si hubo varios, puedo copiar estas preguntas y describirlos por separado.
 
-**Entrega:** realiza un Pull Request a `testing/petcare-v37`. La evidencia de fecha/hora será la registrada por GitHub. No subas contraseñas, correos de recuperación ni datos de terceros.
+## Lo que más me gustó 💚
+
+Escribir aquí...
+
+## ¿Qué mejoraría?
+
+Escribir aquí... (puedo sugerir cambios de diseño, botones, textos o funciones)
+
+## Mi opinión final
+
+**¿Qué tan fácil me pareció usar PetCare?** ___ / 10
+
+**Mi comentario general:**<br>
+Escribir aquí...
+
+---
+
+**Entrega:** guardar este archivo desde mi cuenta de GitHub en una rama propia y enviar un **Pull Request a `testing/petcare-v37`** antes del **23/10/2026, 11:59 p. m. (México centro)**. Solo modificaré mi informe. No compartiré contraseñas ni datos personales.
