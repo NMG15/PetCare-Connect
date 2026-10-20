@@ -1,4 +1,3 @@
-// Ajustes de apariencia. Se mantienen los datos existentes de Firebase.
 part of '../main.dart';
 
 class AppearanceSettingsPage extends StatelessWidget {

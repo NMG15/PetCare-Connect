@@ -10,7 +10,7 @@
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="false">
 
-        <!-- Facebook Login -->
+
         <meta-data
             android:name="com.facebook.sdk.ApplicationId"
             android:value="@string/facebook_app_id" />
@@ -55,7 +55,7 @@
             </intent-filter>
         </receiver>
 
-        <!-- Firebase Cloud Messaging -->
+
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_stat_petcare" />

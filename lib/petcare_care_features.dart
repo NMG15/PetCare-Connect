@@ -8,9 +8,6 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as timezone_data;
 import 'package:timezone/timezone.dart' as tz;
 
-// El catalogo de una mascota combina tipos generales y personales.
-// PetCare comparte el catalogo como parte de la biblioteca main.dart.
-// Importar explicitamente los ayudantes utilizados por esta pantalla y los avisos.
 import 'main.dart' show
     CloudDb,
     catalogCareById,
@@ -60,8 +57,6 @@ DocumentReference<Map<String, dynamic>> _petDoc(String petId) =>
 CollectionReference<Map<String, dynamic>> _reminderDocs(String petId) =>
     _petDoc(petId).collection('reminders');
 
-/// Avisos locales de Android. No hay servidor ni envío de notificaciones push.
-/// Android puede retrasar avisos aproximados en modo ahorro de energía.
 class PetCareAlerts {
   PetCareAlerts._();
   static final PetCareAlerts instance = PetCareAlerts._();
@@ -134,7 +129,6 @@ class PetCareAlerts {
   }
 
   int _uniqueId(String userId, String petId, String reminderId, int weekday) {
-    // FNV-1a, rango positivo y reservado para los recordatorios.
     var hash = 0x811C9DC5;
     for (final code in '$userId|$petId|$reminderId|$weekday'.codeUnits) {
       hash = (hash ^ code) * 0x01000193 & 0xFFFFFFFF;
@@ -152,7 +146,6 @@ class PetCareAlerts {
           (weekday == null || candidate.weekday == weekday)) {
         return candidate;
       }
-      // Constructor de fecha local: respeta cambios de horario de verano.
       candidate = tz.TZDateTime(
         tz.local, candidate.year, candidate.month, candidate.day + 1,
         hour, minute,
@@ -196,9 +189,6 @@ class PetCareAlerts {
     );
   }
 
-  /// Se ejecuta tras acceder a la cuenta y cuando se cambian sus horarios.
-  /// Prepara las notificaciones para este dispositivo; una cuenta en otro
-  /// celular debe iniciar sesión allí para programarlas también.
   Future<void> syncForUser(String userId) async {
     await init();
     final pets = await FirebaseFirestore.instance.collection('users')
@@ -243,8 +233,6 @@ class PetCareAlerts {
       }
     }
 
-    // Se cancela únicamente después de que las lecturas hayan terminado:
-    // un fallo de red no borra por error los horarios vigentes del teléfono.
     await _plugin.cancelAll();
     for (final reminder in schedules) {
       final days = reminder.days;
@@ -271,18 +259,15 @@ class PetCareAlerts {
   }
 }
 
-/// Solo los horarios de este cuidado. Crear un horario no crea un cuidado.
 List<Map<String, dynamic>> remindersForCare(
     List<Map<String, dynamic>> rows, String careId) =>
     rows.where((row) => (row['careId'] ?? '').toString() == careId)
         .toList(growable: false);
 
-/// Un solo horario nuevo por cuidado y mascota. No borra los avisos antiguos.
 bool canAddReminderForCare(List<Map<String, dynamic>> reminders, String careId) {
   return !reminders.any((item) => (item['careId'] ?? '').toString() == careId);
 }
 
-/// Solo las categorías que aún no tienen horario disponible para crear otro.
 List<Map<String, dynamic>> caresWithoutReminder(
     List<Map<String, dynamic>> catalog,
     List<Map<String, dynamic>> reminders) {
@@ -294,7 +279,7 @@ List<Map<String, dynamic>> caresWithoutReminder(
 String careScheduleSummary(List<Map<String, dynamic>> rows) {
   if (rows.isEmpty) return 'Sin horario';
   if (rows.length > 1) {
-    return '${rows.length} horarios'; // Se conservan avisos antiguos.
+    return '${rows.length} horarios';
   }
   final row = rows.first;
   final hour = (row['hour'] as num?)?.toInt();
@@ -340,7 +325,6 @@ class _PetCareVisibilityPageState extends State<PetCareVisibilityPage> {
       final data = pet.data() ?? <String, dynamic>{};
       final shown = await CloudDb.instance.careCatalogForPet(
           widget.species, data);
-      // Horarios existentes: no se crean ni modifican al ver esta pantalla.
       List<Map<String, dynamic>> savedSchedules = [];
       try {
         final scheduleSnap = await _reminderDocs(widget.petId).get();
@@ -348,7 +332,6 @@ class _PetCareVisibilityPageState extends State<PetCareVisibilityPage> {
             .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
             .toList();
       } catch (_) {
-        // La personalizacion sigue disponible si temporalmente faltan avisos.
       }
       final custom = data['personalCareTypes'];
       final personal = <Map<String, dynamic>>[];
@@ -413,8 +396,6 @@ class _PetCareVisibilityPageState extends State<PetCareVisibilityPage> {
     }
   }
 
-  // V35: renombrar los cuidados de base SOLO para esta mascota,
-  // sin tocar el catalogo general ni perder los IDs del historial/avisos.
   Future<void> editCare([Map<String, dynamic>? item]) async {
     if (editing) { return; }
     final isPersonal = item == null || item['personal'] == true;
@@ -557,7 +538,6 @@ class _PetCareVisibilityPageState extends State<PetCareVisibilityPage> {
     final id = (care['id'] ?? '').toString();
     final schedules = remindersForCare(petReminders, id);
     if (schedules.length > 1) {
-      // No se elimina ni reemplaza en silencio ningún aviso antiguo.
       await Navigator.push<void>(context, MaterialPageRoute(
         builder: (_) => PetRemindersPage(
           petId: widget.petId,
@@ -567,7 +547,6 @@ class _PetCareVisibilityPageState extends State<PetCareVisibilityPage> {
         ),
       ));
     } else {
-      // En la situación normal, un toque abre directamente la edición.
       await Navigator.push<bool>(context, MaterialPageRoute(
         builder: (_) => ReminderEditorPage(
           petId: widget.petId,
@@ -617,7 +596,6 @@ class _PetCareVisibilityPageState extends State<PetCareVisibilityPage> {
             : ListView(
                 padding: const EdgeInsets.all(18),
                 children: [
-                  // El titulo de la barra ya explica esta seccion.
                   SizedBox(width: double.infinity,
                     child: FilledButton.icon(
                       onPressed: editing ? null : () => editCare(),
@@ -717,7 +695,6 @@ class PetRemindersPage extends StatefulWidget {
   final String petId;
   final String petName;
   final String species;
-  /// Si llega desde "Personalizar cuidados", solo muestra este cuidado.
   final String? focusCareId;
   const PetRemindersPage({
     super.key, required this.petId, required this.petName, required this.species,
@@ -843,7 +820,6 @@ class _PetRemindersPageState extends State<PetRemindersPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text('Horarios de ${widget.petName}')),
-    // V33: crear horario desde el flujo visible, sin tapar los registros.
     body: busy ? Center(child: CircularProgressIndicator())
         : RefreshIndicator(
           onRefresh: load,
@@ -1010,7 +986,6 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
     final savedDays = (old?['days'] as List?)
         ?.whereType<num>().map((e) => e.toInt())
         .where((day) => day >= 1 && day <= 7).toSet() ?? <int>{};
-    // Los horarios antiguos guardaban [] para indicar repetición diaria.
     if (old != null && savedDays.isEmpty) {
       weekdays.addAll(List<int>.generate(7, (index) => index + 1));
     } else {
@@ -1057,7 +1032,6 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
         'updatedAt': FieldValue.serverTimestamp(),
       };
       final remindersRef = _reminderDocs(widget.petId);
-      // La UI no es la autoridad: comprobar en Firestore antes de guardar.
       final sameCare = await remindersRef
           .where('careId', isEqualTo: careId).get();
       final currentId = widget.existing?['id']?.toString();
@@ -1073,8 +1047,6 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
         return;
       }
       if (widget.existing == null) {
-        // ID determinista: dos dispositivos no crean dos avisos nuevos
-        // distintos para el mismo cuidado. Los documentos antiguos se respetan.
         final canonical = remindersRef.doc('care_$careId');
         final previous = await canonical.get();
         if (previous.exists) {
@@ -1105,8 +1077,6 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
     }
   }
 
-  // Selector compacto; evita que el desplegable nativo ocupe o tape
-  // casi toda la pantalla en dispositivos Xiaomi con texto ampliado.
   Future<void> selectCare() async {
     if (widget.careTypes.isEmpty) return;
     final chosen = await showModalBottomSheet<String>(
@@ -1321,16 +1291,15 @@ class PetHistoryPage extends StatefulWidget {
 class _PetHistoryPageState extends State<PetHistoryPage> {
   List<Map<String, dynamic>> entries = [];
   bool busy = true;
-  int selectedPeriod = 0; // 0 semana, 1 mes, 2 año, 3 todos los años
+  int selectedPeriod = 0;
   DateTime anchor = DateTime.now();
   Map<String, String> namesByType = {};
   DateTime? selectedCalendarDate;
   Map<String, Color>? _cachedCareColors;
 
-  // Se conserva el mismo color para cada tipo a través de todas las vistas.
   static const _baseColors = <String, Color>{
-    'feeding': Color(0xFFE29B29), // Alimentación: ámbar
-    'water': Color(0xFF287CC7), // Agua: azul
+    'feeding': Color(0xFFE29B29),
+    'water': Color(0xFF287CC7),
     'walk': Color(0xFFDD7840),
     'hygiene': Color(0xFF1E9E97),
     'habitat': Color(0xFF8361C7),
@@ -1354,11 +1323,9 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
 
   String _typeName(Map<String, dynamic> entry) {
     final type = _typeKey(entry);
-    // Nombre normalizado de la opción predeterminada, incluidos registros antiguos.
     if (type == 'habitat') return 'Limpieza del hábitat';
     final saved = (entry['label'] ?? '').toString().trim();
     var name = saved.isNotEmpty ? saved : (namesByType[type] ?? type);
-    // Solo se corrige el rótulo visible; no se modifica ningún documento.
     name = name.replaceAll(RegExp(r'\bhábitat\s+hábitat\b',
         caseSensitive: false), 'hábitat');
     if (name.toLowerCase() == 'habitat' || name.toLowerCase() == 'hábitat') {
@@ -1368,7 +1335,6 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
   }
 
   Map<String, Color> get _colorsByType {
-    // Los cuidados nuevos del administrador reciben también un color propio.
     return _cachedCareColors ??= _buildCareColors();
   }
 
@@ -1409,9 +1375,6 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
     decoration: BoxDecoration(color: color, shape: BoxShape.circle),
   );
 
-  /// Cada punto representa un tipo de cuidado distinto registrado ese día.
-  /// En el calendario solo mostramos puntos de color (sin '+2', '+3', etc.)
-  /// para mantener el estilo limpio y evitar que se amontonen en celdas pequeñas.
   Widget _typeDots(List<Map<String, dynamic>> rows,
       {int maxDots = 5, double diameter = 6.5}) {
     final types = _countsByType(rows).keys.toList()..sort();
@@ -1593,8 +1556,6 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
     });
   }
 
-  /// Un punto equivale a un TIPO de cuidado, no a un registro.
-  /// El recuento por actividad de la fecha seleccionada está bajo el calendario.
   Widget monthCalendar(List<Map<String, dynamic>> inPeriod) {
     final firstDay = DateTime(anchor.year, anchor.month);
     final daysInMonth = DateTime(anchor.year, anchor.month + 1, 0).day;
@@ -1816,8 +1777,6 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
             child: ListView(padding: EdgeInsets.fromLTRB(
               18, 12, 18, MediaQuery.viewPaddingOf(context).bottom + 104),
               children: [
-                // V33: la barra superior ya dice «Historial»;
-                // mostrar directamente resumen y periodo ahorra desplazamiento.
                 Card(color: Theme.of(context).colorScheme.primaryContainer, margin: EdgeInsets.zero,
                   child: Padding(padding: const EdgeInsets.all(17),
                     child: Row(children: [
@@ -1992,7 +1951,6 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
 }
 
 
-/// Mantiene las acciones sobre la barra de gestos / botones Android.
 Widget _petCareRemindersFooter(BuildContext context, Widget button) {
   final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
   final bottomSpace = bottomInset < 20 ? 24.0 : bottomInset + 14.0;

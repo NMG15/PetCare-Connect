@@ -142,7 +142,6 @@ class _AuthPageState extends State<AuthPage> {
     ));
   }
 
-  // Mostrar información útil sin publicar datos sensibles ni credenciales.
   String socialErrorMessage(Object error, String provider) {
     final message = error.toString().toLowerCase();
     if (message.contains('network') || message.contains('internet') ||
@@ -179,8 +178,6 @@ class _AuthPageState extends State<AuthPage> {
         (match) => '${match.group(1)}[oculto]',
       );
 
-  // No interrumpir el inicio de sesión con un cuadro de diagnóstico técnico.
-  // La configuración de Meta sigue siendo necesaria para habilitar Facebook.
   Future<void> showFacebookDiagnostic(String detail) async {
     if (!mounted) return;
     msg('No se pudo iniciar sesión con Facebook por ahora. '
@@ -208,8 +205,6 @@ class _AuthPageState extends State<AuthPage> {
           email: email.text.trim(), password: pass.text,
         );
         await credential.user?.updateDisplayName(name.text.trim());
-        // El correo de verificación es parte de Firebase Authentication.
-        // No bloquear la cuenta si el proveedor de correo está momentáneamente indisponible.
         try {
           await credential.user?.sendEmailVerification();
         } on FirebaseAuthException {
@@ -223,7 +218,6 @@ class _AuthPageState extends State<AuthPage> {
           );
         } on FirebaseException catch (e) {
           debugPrint('No se pudo sincronizar el perfil: ${e.code}');
-          // La sesión es válida. La pantalla principal reintentará al tener red.
         }
       }
       if (mounted) Navigator.popUntil(context, (route) => route.isFirst);
@@ -283,9 +277,6 @@ class _AuthPageState extends State<AuthPage> {
     if (busy) return;
     setState(() => busy = true);
     try {
-      // Diagnóstico: probar el flujo web evita depender del selector nativo de
-      // Facebook y ayuda a confirmar si la restricción proviene de Meta.
-      // No desactiva requisitos de publicación o permisos de Meta.
       final result = await FacebookAuth.instance.login(
         permissions: const ['email', 'public_profile'],
         loginBehavior: LoginBehavior.webOnly,
@@ -294,7 +285,6 @@ class _AuthPageState extends State<AuthPage> {
 
       final sdkMessage = (result.message ?? '').trim();
       if (result.status == LoginStatus.cancelled) {
-        // Cerrar el navegador no debe abrir otro aviso técnico encima.
         return;
       }
 
@@ -309,7 +299,6 @@ class _AuthPageState extends State<AuthPage> {
         return;
       }
 
-      // Nunca mostramos, copiamos ni imprimimos tokens de acceso.
       final credential = FacebookAuthProvider.credential(
         result.accessToken!.tokenString,
       );

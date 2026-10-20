@@ -1,8 +1,5 @@
-// PetCare Connect: módulo del mismo paquete Dart; comparte los componentes internos.
 part of '../main.dart';
 
-/// Ejecuta eliminaciones por lotes, dejando el documento principal al final.
-/// Si un lote falla, los siguientes no se ejecutan.
 Future<void> runPetDeletionBatches<T>({
   required Iterable<T> children,
   required T parent,
@@ -67,10 +64,6 @@ class CloudDb {
   Future<void> updatePet(String id, Map<String, dynamic> values) async =>
       _pets.doc(id).set({...values, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
 
-  // Firestore limita cada WriteBatch a un máximo de 500 operaciones.
-  // Se borra primero el contenido y el documento principal se deja al final.
-  // Los conjuntos grandes requieren varios lotes, por lo que la operación
-  // deja de ser atómica si supera el tamaño de un lote.
   Future<void> _deletePetWithCareAndReminders(
     DocumentReference<Map<String, dynamic>> petRef,
   ) async {
@@ -221,8 +214,6 @@ class CloudDb {
     }).toList();
   }
 
-  /// Incluye los cuidados personales de UNA mascota, nunca los publica
-  /// para otros usuarios ni modifica el catalogo del administrador.
   Future<List<Map<String, dynamic>>> careCatalogForPet(
       String species, Map<String, dynamic> pet) async {
     final base = await careCatalogForSpecies(species);

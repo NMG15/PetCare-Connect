@@ -1,4 +1,3 @@
-// Preferencias locales. No modifica datos de Firebase ni sesiones.
 part of '../main.dart';
 
 class PetCareAppearance {

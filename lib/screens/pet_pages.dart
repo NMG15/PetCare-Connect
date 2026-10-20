@@ -1,4 +1,3 @@
-// PetCare Connect: módulo del mismo paquete Dart; comparte los componentes internos.
 part of '../main.dart';
 
 class HomePage extends StatefulWidget {
@@ -296,8 +295,6 @@ class _HomePageState extends State<HomePage> {
         selected: _onlyPets ? 1 : 0,
         onSelected: _onTabSelected,
       ),
-      // V33: los accesos «Nueva mascota» ya estan dentro de la lista.
-      // No superponer otro boton flotante a las tarjetas.
       body: loading
           ? Center(child: CircularProgressIndicator())
           : loadError != null
@@ -768,8 +765,6 @@ class _PetEditorState extends State<PetEditor> {
               initialValue: customCoat
                   ? 'Otro (especificar)'
                   : petCoatOptions(species).contains(coat.text) ? coat.text : null,
-              // Cuando aún no se ha elegido una opción, muestra una instrucción
-              // legible en ambos temas (antes el desplegable se veía vacío).
               hint: Text(
                 species == 'Ave'
                     ? 'Selecciona el plumaje'

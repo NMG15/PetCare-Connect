@@ -1,4 +1,3 @@
-// Paleta adaptable; sin invertir colores de fotografías ni del logotipo.
 part of '../main.dart';
 
 Color adaptiveInk(BuildContext context) => Theme.of(context).colorScheme.onSurface;
@@ -15,8 +14,6 @@ ThemeData buildPetCareTheme(Brightness brightness) {
   ).copyWith(
     primary: dark ? const Color(0xFF47E6A1) : green,
     onPrimary: dark ? const Color(0xFF052819) : Colors.white,
-    // Premium V29: modo oscuro NEGRO, con superficies gris grafito.
-    // El verde queda reservado para iconos y acciones.
     primaryContainer: dark ? const Color(0xFF24262A) : const Color(0xFFE4F3E7),
     onPrimaryContainer: dark ? const Color(0xFFF2F4F4) : const Color(0xFF173A2B),
     secondaryContainer: dark ? const Color(0xFF292B30) : const Color(0xFFEFF6EF),
@@ -140,7 +137,6 @@ ThemeData buildPetCareTheme(Brightness brightness) {
         borderSide: BorderSide(color: scheme.primary, width: 1.5),
       ),
     ),
-    // Los filtros y colores seleccionados deben distinguirse en ambos modos.
     chipTheme: ChipThemeData(
       backgroundColor: surface,
       selectedColor: selectedChip,
@@ -184,7 +180,6 @@ ThemeData buildPetCareTheme(Brightness brightness) {
         borderRadius: BorderRadius.circular(22),
       ),
     ),
-    // Los menus, cuadros y paneles conservan el grafito: el verde es acento.
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: surface,
       modalBackgroundColor: surface,
@@ -242,14 +237,10 @@ ThemeData buildPetCareTheme(Brightness brightness) {
 }
 
 
-// Superficie de marca centralizada para uniformidad en todos los módulos.
-// Los datos reales y la lógica Firebase permanecen intactos.
 const petCareDarkBackground = Color(0xFF000000);
 const petCareDarkCard = Color(0xFF1C1E22);
 const petCareEmerald = Color(0xFF47E6A1);
 
-/// Barra de acción consistente: mantiene el botón fuera de la navegación Android.
-/// Algunos fabricantes informan un inset de 0 incluso en edge-to-edge.
 Widget petCareActionFooter(BuildContext context, Widget button,
     {double horizontal = 20}) {
   final bottomInset = MediaQuery.viewPaddingOf(context).bottom;

@@ -1,7 +1,5 @@
-// Componentes visuales Premium V2. No realizan operaciones con Firebase.
 part of '../main.dart';
 
-/// Encabezado «Signature» reutilizable en usuario y administración.
 class PetCareSignatureHero extends StatelessWidget {
   final String eyebrow;
   final String title;
@@ -194,7 +192,6 @@ class PetCarePageIntro extends StatelessWidget {
   }
 }
 
-/// Barra de navegación: solo mueve entre secciones reales de PetCare.
 class PetCareBottomNav extends StatelessWidget {
   final int selected;
   final ValueChanged<int> onSelected;
@@ -228,8 +225,6 @@ class PetCareBottomNav extends StatelessWidget {
 }
 
 
-/// V33: selector tactil compacto. El panel nunca ocupa toda la pantalla.
-/// Componente exclusivamente visual, no almacena ni modifica datos.
 class PetCareSelectOption {
   final String value;
   final String label;
@@ -358,8 +353,6 @@ class PetCareCompactSelector extends StatelessWidget {
 }
 
 
-/// V35: todas las tarjetas ocupan la misma altura en ambos temas.
-/// El icono queda arriba; el nombre y el estado se alinean abajo.
 class PetCareTodayTile extends StatelessWidget {
   final Map<String, dynamic> care;
   final int countToday;
@@ -378,7 +371,6 @@ class PetCareTodayTile extends StatelessWidget {
     final bg = done
         ? (dark ? const Color(0xFF13372B) : const Color(0xFFDFF6E9))
         : theme.cardColor;
-    // Altura uniforme incluso con etiquetas de dos lineas y fuentes grandes.
     final scale = MediaQuery.textScalerOf(context).scale(1);
     final tileHeight = (164.0 * scale).clamp(164.0, 260.0).toDouble();
     return Semantics(

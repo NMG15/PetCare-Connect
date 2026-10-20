@@ -56,14 +56,10 @@ void main() {
         ),
       );
 
-      // V37 simplifica el encabezado: ya no muestra una tarjeta
-      // redundante con 'Recordatorio · mascota'. El editor debe seguir
-      // mostrando el cuidado, la hora y la seleccion de dias.
       expect(find.text('Crear horario'), findsOneWidget);
       expect(find.text('Alimentación'), findsOneWidget);
       expect(find.text('5:00 p. m.'), findsOneWidget);
 
-      // El ListView crea contenido conforme se desplaza.
       await tester.scrollUntilVisible(
         find.text('Repetir'),
         180,

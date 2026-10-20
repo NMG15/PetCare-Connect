@@ -17,7 +17,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'petcare_care_features.dart';
 import 'petcare_cloud_messaging.dart';
 
-// Los módulos `part` preservan el acceso a las clases internas y evitan un archivo de 4,400 líneas.
 part 'core/app_appearance.dart';
 part 'core/app_theme.dart';
 part 'core/premium_components.dart';
@@ -36,11 +35,8 @@ const ink = Color(0xFF173A2D);
 const pale = Color(0xFFE8F3EB);
 
 
-/// Compilación especial para Fire Tablet, sin servicios de Google Play.
-/// La compilación Android habitual conserva Google y Facebook.
 const bool amazonBuild = bool.fromEnvironment('AMAZON_BUILD', defaultValue: false);
 
-/// Facebook se activa en Amazon SOLO después de probar su login en Fire OS.
 const bool amazonFacebookEnabled = bool.fromEnvironment(
   'AMAZON_FACEBOOK_ENABLED', defaultValue: false,
 );
@@ -57,15 +53,12 @@ Future<void> main() async {
   try {
     await PetCareAlerts.instance.init();
   } catch (_) {
-    // Si el teléfono no expone su zona horaria, la app puede abrirse.
-    // La pantalla de recordatorios mostrará el error al programar.
   }
   if (!amazonBuild) {
     try {
       await PetCareCloudMessaging.instance.init();
     } catch (e) {
       debugPrint('FCM_INIT: $e');
-      // FCM se volverá a intentar cuando el usuario inicie sesión.
     }
   }
   runApp(const PetCareApp());
@@ -90,8 +83,6 @@ class PetCareApp extends StatelessWidget {
       themeMode: selectedMode,
       theme: buildPetCareTheme(Brightness.light),
       darkTheme: buildPetCareTheme(Brightness.dark),
-      // Mantener iconos y navegacion Android legibles sobre fondos negros.
-      // En Android 15+ el sistema puede controlar el fondo de la barra inferior.
       builder: (context, child) {
         final isDark = Theme.of(context).brightness == Brightness.dark;
         return AnnotatedRegion<SystemUiOverlayStyle>(
