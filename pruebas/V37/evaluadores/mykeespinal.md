@@ -1,6 +1,6 @@
 # 🐾 Mi evaluación de PetCare Connect V37
 
-**Evaluador:** Tercer compañero (por confirmar) (`@PENDIENTE`)<br>
+**Evaluador:** Miguel Espinal (`@mykeespinal`)<br>
 **Fecha en que hice las pruebas:** __________________<br>
 **Mi teléfono / versión de Android:** __________________<br>
 **Versión revisada:** PetCare Connect `0.21.8 (37)`
@@ -57,4 +57,4 @@ Escribir aquí...
 
 ---
 
-**Entrega:** guardar este archivo desde mi cuenta de GitHub en una rama propia y enviar un **Pull Request a `testing/petcare-v37`** antes del **23/10/2026, 11:59 p. m. (México centro)**. Solo modificaré mi informe. No compartiré contraseñas ni datos personales.
+**Entrega:** guardar este archivo desde mi cuenta de GitHub en una rama propia y enviar un **Pull Request a `testing/petcare-v37`** antes del **24/10/2026, 11:59 p. m. (México centro)**. Solo modificaré mi informe. No compartiré contraseñas ni datos personales.

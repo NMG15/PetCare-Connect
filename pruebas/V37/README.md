@@ -1,6 +1,6 @@
 # 🐾 PetCare Connect V37 | Evaluación con compañeros
 
-**Versión:** `0.21.8 (37)` · **Android** · **Entrega:** viernes **23 de octubre de 2026, 11:59 p. m.** (hora del centro de México).
+**Versión:** `0.21.8 (37)` · **Android** · **Entrega:** sábado **24 de octubre de 2026, 11:59 p. m.** (hora del centro de México).
 
 **[Descargar PetCare V37 (APK)](https://github.com/NMG15/PetCare-Connect/releases/download/v0.21.8/PetCare_Android_v37.apk)** · [Ver publicación](https://github.com/NMG15/PetCare-Connect/releases/tag/v0.21.8)
 
@@ -18,7 +18,7 @@ Hay **10 aspectos para revisar**; pueden avanzar a su ritmo. Si no logran probar
 |:--|:--|:--|
 | @CarlosWrld | [Evaluación de Carlos](evaluadores/CarlosWrld.md) | Pendiente |
 | @Julio10Mon | [Evaluación de Julio](evaluadores/Julio10Mon.md) | Pendiente |
-| Tercer compañero por confirmar | [Formato reservado](evaluadores/Evaluador_3_PENDIENTE.md) | Por asignar |
+| @mykeespinal | [Evaluacion de Miguel](evaluadores/mykeespinal.md) | Pendiente |
 
 ## ¿Cómo entregan su evaluación?
 
@@ -29,7 +29,7 @@ Hay **10 aspectos para revisar**; pueden avanzar a su ritmo. Si no logran probar
 5. En el Pull Request, verifiquen que **base = `testing/petcare-v37`**, NO `main`. Título sugerido: `Evaluación PetCare V37 — @TuUsuario`.
 6. Compártanme el enlace del Pull Request. Así queda registrada su entrega y la fecha en GitHub.
 
-**Fecha límite:** viernes **23/10/2026 a las 23:59**, hora del centro de México. Las entregas posteriores podrán identificarse como fuera de plazo; GitHub **no bloquea automáticamente** los envíos.
+**Fecha límite:** sábado **24/10/2026 a las 23:59**, hora del centro de México. Las entregas posteriores podrán identificarse como fuera de plazo; GitHub **no bloquea automáticamente** los envíos.
 
 ## Para probar con tranquilidad
 
