@@ -148,42 +148,12 @@ class _AuthPageState extends State<AuthPage> {
         message.contains('socketexception')) {
       return 'No hay conexión estable. Comprueba internet e inténtalo otra vez.';
     }
-    if (message.contains('app is not active') ||
-        message.contains('app not active') ||
-        message.contains('la app no está activa') ||
-        message.contains('application is not active')) {
-      return 'Meta indica que esta aplicación no está activa para esta sesión. '
-          'Comprueba el estado del inicio de sesión en Meta y la cuenta usada en Facebook.';
-    }
-    if (message.contains('key hash') || message.contains('keyhash')) {
-      return 'Firma de Facebook no reconocida (Key Hash). Revisa Meta Developers.';
-    }
-    if (message.contains('invalid_client_token') || message.contains('client token')) {
-      return 'El token de cliente de Facebook es inválido. Revisa Meta Developers.';
-    }
     if (message.contains('not initialized') || message.contains('sdk') ||
         message.contains('missingplugin')) {
       return 'No se pudo iniciar el servicio de $provider en este dispositivo.';
     }
     return 'No se pudo continuar con $provider. Inténtalo de nuevo.';
   }
-
-  String redactDiagnostic(String message) => message
-      .replaceAllMapped(
-        RegExp(r'(access[_-]?token|id[_-]?token|client[_-]?secret)\s*[:=]\s*[^\s,;]+', caseSensitive: false),
-        (match) => '${match.group(1)}=[oculto]',
-      )
-      .replaceAllMapped(
-        RegExp(r'([?&](?:code|oobCode|access_token)=)[^&\s]+', caseSensitive: false),
-        (match) => '${match.group(1)}[oculto]',
-      );
-
-  Future<void> showFacebookDiagnostic(String detail) async {
-    if (!mounted) return;
-    msg('No se pudo iniciar sesión con Facebook por ahora. '
-        'Puedes usar tu correo o Google mientras se revisa el acceso.');
-  }
-
 
   Future<void> emailAuth() async {
     if (email.text.trim().isEmpty || pass.text.isEmpty ||
@@ -268,70 +238,6 @@ class _AuthPageState extends State<AuthPage> {
     } catch (e) {
       debugPrint('GOOGLE_UNEXPECTED_ERROR: ${e.runtimeType}: $e');
       msg(socialErrorMessage(e, 'Google'));
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
-  Future<void> facebookAuth() async {
-    if (busy) return;
-    setState(() => busy = true);
-    try {
-      final result = await FacebookAuth.instance.login(
-        permissions: const ['email', 'public_profile'],
-        loginBehavior: LoginBehavior.webOnly,
-      );
-      if (!mounted) return;
-
-      final sdkMessage = (result.message ?? '').trim();
-      if (result.status == LoginStatus.cancelled) {
-        return;
-      }
-
-      if (result.status != LoginStatus.success || result.accessToken == null) {
-        await showFacebookDiagnostic(
-          'Estado del SDK: ${result.status.name}\n'
-          'Mensaje: ${sdkMessage.isEmpty ? 'Sin descripción' : sdkMessage}\n'
-          'Método: navegador (webOnly)\n'
-          'Paquete: com.petcareconnect.app\n'
-          'Compilación: ${amazonBuild ? 'Amazon Fire' : 'Android'}',
-        );
-        return;
-      }
-
-      final credential = FacebookAuthProvider.credential(
-        result.accessToken!.tokenString,
-      );
-      final signedIn = await FirebaseAuth.instance.signInWithCredential(credential);
-      if (signedIn.user != null) {
-        try {
-          await CloudDb.instance.saveUserProfile(signedIn.user!);
-        } on FirebaseException catch (e) {
-          debugPrint('FACEBOOK_PROFILE_SYNC_ERROR: ${e.code}');
-        }
-      }
-      if (mounted) Navigator.popUntil(context, (route) => route.isFirst);
-    } on FirebaseAuthException catch (e) {
-      debugPrint('FACEBOOK_FIREBASE_ERROR: ${e.code}');
-      final detail = switch (e.code) {
-        'account-exists-with-different-credential' =>
-          'Ya existe una cuenta con este correo usando otro proveedor.',
-        'credential-already-in-use' =>
-          'Esta cuenta de Facebook ya está asociada a otra cuenta.',
-        'operation-not-allowed' =>
-          'El proveedor Facebook no está habilitado correctamente en Firebase.',
-        _ => 'Firebase Auth: ${e.code}; ${e.message ?? 'Sin descripción'}',
-      };
-      await showFacebookDiagnostic(detail);
-    } catch (e, stackTrace) {
-      final descripcion = redactDiagnostic(e.toString());
-      debugPrint('FACEBOOK_LOGIN_ERROR: ${e.runtimeType}: $descripcion');
-      debugPrintStack(stackTrace: stackTrace);
-      await showFacebookDiagnostic(
-        'Tipo: ${e.runtimeType}\n'
-        'Causa: ${socialErrorMessage(e, 'Facebook')}\n'
-        'Descripción técnica: $descripcion',
-      );
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -588,8 +494,7 @@ class _AuthPageState extends State<AuthPage> {
                       ),
                     ),
 
-                    if (!amazonBuild ||
-                        amazonFacebookEnabled) ...[
+                    if (!amazonBuild) ...[
                       const SizedBox(height: 24),
                       Row(
                         children: [
@@ -627,28 +532,11 @@ class _AuthPageState extends State<AuthPage> {
                       const SizedBox(height: 12),
                     ],
 
-                    if (!amazonBuild ||
-                        amazonFacebookEnabled)
-                      SizedBox(
-                        height: 56,
-                        child: OutlinedButton.icon(
-                          onPressed: busy ? null : facebookAuth,
-                          icon: const Icon(Icons.facebook),
-                          label: const Text(
-                            'Continuar con Facebook',
-                          ),
-                        ),
-                      ),
-
-                    if (amazonBuild &&
-                        !amazonFacebookEnabled)
+                    if (amazonBuild)
                       Padding(
                         padding: const EdgeInsets.only(top: 20),
                         child: Text(
-                          'En Fire Tablet puedes acceder con '
-                          'correo y contraseña. Los accesos '
-                          'sociales estarán disponibles '
-                          'después de verificar su compatibilidad.',
+                          'En Fire Tablet puedes acceder con correo y contraseña.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: colors.onSurfaceVariant,

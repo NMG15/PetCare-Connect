@@ -6,7 +6,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
@@ -37,9 +36,6 @@ const pale = Color(0xFFE8F3EB);
 
 const bool amazonBuild = bool.fromEnvironment('AMAZON_BUILD', defaultValue: false);
 
-const bool amazonFacebookEnabled = bool.fromEnvironment(
-  'AMAZON_FACEBOOK_ENABLED', defaultValue: false,
-);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

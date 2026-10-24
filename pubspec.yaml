@@ -21,7 +21,6 @@ dependencies:
   flutter_local_notifications: ^19.5.0
   flutter_timezone: ^5.1.0
   timezone: ^0.10.1
-  flutter_facebook_auth: ^7.2.0
   shared_preferences: ^2.5.3
 dev_dependencies:
   flutter_test:
