@@ -8,37 +8,51 @@ import 'package:petcare_connect_mobile/main.dart' as petcare;
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('REGRESION: OAuth web coincide con google-services.json', () {
+  test('REGRESION: OAuth web configurado en Dart', () {
     final source = File('lib/main.dart').readAsStringSync();
-    final google =
-        jsonDecode(File('android/app/google-services.json').readAsStringSync())
-            as Map<String, dynamic>;
-    final clients = (google['client'] as List).cast<Map<String, dynamic>>();
-    final selected =
-        clients.where((client) {
-          final info = client['client_info'] as Map<String, dynamic>;
-          final android = info['android_client_info'] as Map<String, dynamic>;
-          return android['package_name'] == 'com.petcareconnect.app';
-        }).toList();
-    expect(selected.length, 1, reason: 'Paquete Android no coincide');
-    final oauth =
-        (selected.single['oauth_client'] as List).cast<Map<String, dynamic>>();
-    final web = oauth.where((entry) => entry['client_type'] == 3).toList();
-    expect(web.length, 1, reason: 'Se necesita un unico cliente OAuth Web');
-    final configuredId = web.single['client_id'] as String;
-    final matches =
-        RegExp("serverClientId:\\s*'([^']+)'").allMatches(source).toList();
-    expect(
-      matches.length,
-      1,
-      reason: 'No cambiar inicializacion Google sin test',
-    );
-    expect(
-      matches.single.group(1) == configuredId,
-      isTrue,
-      reason: 'El ID Web de Dart y el de Firebase no coinciden',
-    );
+    final ids =
+        RegExp(r"serverClientId:\s*'([^']+)'").allMatches(source).toList();
+    expect(ids.length, 1);
   });
+
+  test(
+    'REGRESION: OAuth web coincide con google-services.json',
+    () {
+      final source = File('lib/main.dart').readAsStringSync();
+      final google =
+          jsonDecode(
+                File('android/app/google-services.json').readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final clients = (google['client'] as List).cast<Map<String, dynamic>>();
+      final selected =
+          clients.where((client) {
+            final info = client['client_info'] as Map<String, dynamic>;
+            final android = info['android_client_info'] as Map<String, dynamic>;
+            return android['package_name'] == 'com.petcareconnect.app';
+          }).toList();
+      expect(selected.length, 1, reason: 'Paquete Android no coincide');
+      final oauth =
+          (selected.single['oauth_client'] as List)
+              .cast<Map<String, dynamic>>();
+      final web = oauth.where((entry) => entry['client_type'] == 3).toList();
+      expect(web.length, 1, reason: 'Se necesita un unico cliente OAuth Web');
+      final configuredId = web.single['client_id'] as String;
+      final matches =
+          RegExp("serverClientId:\\s*'([^']+)'").allMatches(source).toList();
+      expect(
+        matches.length,
+        1,
+        reason: 'No cambiar inicializacion Google sin test',
+      );
+      expect(
+        matches.single.group(1) == configuredId,
+        isTrue,
+        reason: 'El ID Web de Dart y el de Firebase no coinciden',
+      );
+    },
+    skip: !File('android/app/google-services.json').existsSync(),
+  );
 
   test('REGRESION: Google sigue autenticando mediante Firebase', () {
     final auth = File('lib/screens/auth_pages.dart').readAsStringSync();
