@@ -34,7 +34,7 @@ const speciesCatalog = <String, List<String>>{
     'Labrador Retriever',
     'Maltés',
     'Mestizo / Sin raza definida',
-    'Otra / No sé',
+    'Raza sin especificar',
     'Pastor Alemán',
     'Pastor Australiano',
     'Pastor Belga Malinois',
@@ -58,7 +58,7 @@ const speciesCatalog = <String, List<String>>{
     'West Highland White Terrier',
     'Whippet',
     'Xoloitzcuintle',
-    'Yorkshire Terrier'
+    'Yorkshire Terrier',
   ],
   'Gato': [
     'Abisinio',
@@ -81,7 +81,7 @@ const speciesCatalog = <String, List<String>>{
     'Mestizo / Doméstico',
     'Munchkin',
     'Oriental de pelo corto',
-    'Otra / No sé',
+    'Raza sin especificar',
     'Persa',
     'Ragdoll',
     'Sagrado de Birmania',
@@ -93,7 +93,7 @@ const speciesCatalog = <String, List<String>>{
     'Somalí',
     'Sphynx',
     'Tonkinés',
-    'Turco Van'
+    'Turco Van',
   ],
   'Conejo': [
     'Angora',
@@ -104,8 +104,8 @@ const speciesCatalog = <String, List<String>>{
     'Holland Lop',
     'Mini Lop',
     'Mestizo / Sin raza definida',
-    'Otra / No sé',
-    'Rex'
+    'Raza sin especificar',
+    'Rex',
   ],
   'Hámster': [
     'Sirio / Dorado',
@@ -113,7 +113,7 @@ const speciesCatalog = <String, List<String>>{
     'Ruso de invierno',
     'Roborovski',
     'Chino',
-    'Otro / No sé'
+    'Raza sin especificar',
   ],
   'Ave': [
     'Agapornis',
@@ -127,7 +127,7 @@ const speciesCatalog = <String, List<String>>{
     'Gallina doméstica',
     'Codorniz doméstica',
     'Pato doméstico',
-    'Otra ave doméstica / No sé'
+    'Raza sin especificar',
   ],
   'Cobaya': [
     'Americana / Pelo corto',
@@ -136,9 +136,9 @@ const speciesCatalog = <String, List<String>>{
     'Silkie',
     'Texel',
     'Skinny',
-    'Mestiza / Otra'
+    'Raza sin especificar',
   ],
-  'Hurón': ['Doméstico / Pelo corto', 'Angora', 'Otro / No sé'],
+  'Hurón': ['Doméstico / Pelo corto', 'Angora', 'Raza sin especificar'],
   'Pez': [
     'Betta',
     'Guppy',
@@ -148,13 +148,25 @@ const speciesCatalog = <String, List<String>>{
     'Tetra neón',
     'Corydora',
     'Escalar',
-    'Otro pez ornamental'
+    'Raza sin especificar',
   ],
   'Tortuga': [
+    'Tortuga de orejas rojas',
+    'Tortuga de orejas amarillas',
+    'Tortuga pintada',
+    'Tortuga mapa',
+    'Tortuga almizclera',
+    'Tortuga de caparazón blando',
     'Tortuga acuática doméstica',
     'Tortuga terrestre doméstica',
-    'Otra / No sé'
+    'Tortuga rusa',
+    'Tortuga mediterránea',
+    'Especie no identificada',
+    'Raza sin especificar',
   ],
+  'Iguana': ['Iguana verde', 'Iguana rinoceronte', 'Raza sin especificar'],
+  'Erizo': ['Erizo pigmeo africano', 'Raza sin especificar'],
+  'Otra especie': ['Raza sin especificar'],
 };
 const speciesIcons = <String, String>{
   'Perro': '🐶',
@@ -165,7 +177,10 @@ const speciesIcons = <String, String>{
   'Cobaya': '🐹',
   'Hurón': '🦦',
   'Pez': '🐠',
-  'Tortuga': '🐢'
+  'Tortuga': '🐢',
+  'Iguana': '🦎',
+  'Erizo': '🦔',
+  'Otra especie': '🐾',
 };
 String emojiFor(dynamic value) => speciesIcons[value] ?? '🐾';
 const allPetSpecies = <String>[
@@ -178,6 +193,9 @@ const allPetSpecies = <String>[
   'Hurón',
   'Pez',
   'Tortuga',
+  'Iguana',
+  'Erizo',
+  'Otra especie',
 ];
 
 const defaultCareDefinitions = <Map<String, dynamic>>[
@@ -200,7 +218,9 @@ const defaultCareDefinitions = <Map<String, dynamic>>[
       'Ave',
       'Cobaya',
       'Hurón',
-      'Tortuga'
+      'Tortuga',
+      'Iguana',
+      'Erizo',
     ],
     'active': true,
   },
@@ -222,14 +242,23 @@ const defaultCareDefinitions = <Map<String, dynamic>>[
     'id': 'habitat',
     'label': 'Limpieza del hábitat',
     'icon': 'habitat',
-    'species': ['Conejo', 'Hámster', 'Ave', 'Cobaya', 'Hurón', 'Tortuga'],
+    'species': [
+      'Conejo',
+      'Hámster',
+      'Ave',
+      'Cobaya',
+      'Hurón',
+      'Tortuga',
+      'Iguana',
+      'Erizo',
+    ],
     'active': true,
   },
   {
     'id': 'play',
     'label': 'Juego / enriquecimiento',
     'icon': 'play',
-    'species': ['Gato', 'Conejo', 'Hámster', 'Ave', 'Cobaya', 'Hurón'],
+    'species': ['Gato', 'Conejo', 'Hámster', 'Ave', 'Cobaya', 'Hurón', 'Erizo'],
     'active': true,
   },
   {
@@ -237,6 +266,13 @@ const defaultCareDefinitions = <Map<String, dynamic>>[
     'label': 'Mantenimiento del acuario',
     'icon': 'aquarium',
     'species': ['Pez'],
+    'active': true,
+  },
+  {
+    'id': 'terrarium',
+    'label': 'Revisión del terrario',
+    'icon': 'habitat',
+    'species': ['Iguana'],
     'active': true,
   },
   {
@@ -324,27 +360,40 @@ List<Map<String, dynamic>> defaultCareForSpecies(String species) {
 String normalizeCareName(String value) =>
     value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
-bool careNameTaken(Iterable<Map<String, dynamic>> catalog,
-    String candidate, {String? exceptId}) {
+bool careNameTaken(
+  Iterable<Map<String, dynamic>> catalog,
+  String candidate, {
+  String? exceptId,
+}) {
   final name = normalizeCareName(candidate);
-  return name.isNotEmpty && catalog.any((item) =>
-      (item['id'] ?? '').toString() != exceptId &&
-      normalizeCareName(careTypeLabel(item)) == name);
+  return name.isNotEmpty &&
+      catalog.any(
+        (item) =>
+            (item['id'] ?? '').toString() != exceptId &&
+            normalizeCareName(careTypeLabel(item)) == name,
+      );
 }
 
-String effectiveReminderCareLabel(Map<String, dynamic> pet,
-    String careId, String savedLabel) {
+String effectiveReminderCareLabel(
+  Map<String, dynamic> pet,
+  String careId,
+  String savedLabel,
+) {
   final overrides = pet['careOverrides'];
   if (overrides is Map && overrides[careId] is Map) {
     final label = (overrides[careId]['label'] ?? '').toString().trim();
-    if (label.isNotEmpty && label.length <= 50) { return label; }
+    if (label.isNotEmpty && label.length <= 50) {
+      return label;
+    }
   }
   final personal = pet['personalCareTypes'];
   if (personal is List) {
     for (final row in personal) {
       if (row is Map && (row['id'] ?? '').toString() == careId) {
         final label = (row['label'] ?? '').toString().trim();
-        if (label.isNotEmpty && label.length <= 50) { return label; }
+        if (label.isNotEmpty && label.length <= 50) {
+          return label;
+        }
       }
     }
   }
@@ -352,7 +401,9 @@ String effectiveReminderCareLabel(Map<String, dynamic> pet,
 }
 
 List<Map<String, dynamic>> mergedCareCatalogForPet(
-    List<Map<String, dynamic>> catalog, Map<String, dynamic> pet) {
+  List<Map<String, dynamic>> catalog,
+  Map<String, dynamic> pet,
+) {
   final result = catalog.map((e) => Map<String, dynamic>.from(e)).toList();
   final ids = result.map((e) => (e['id'] ?? '').toString()).toSet();
   final rawOverrides = pet['careOverrides'];
@@ -360,7 +411,9 @@ List<Map<String, dynamic>> mergedCareCatalogForPet(
     for (final row in result) {
       final id = (row['id'] ?? '').toString();
       final custom = rawOverrides[id];
-      if (custom is! Map) { continue; }
+      if (custom is! Map) {
+        continue;
+      }
       final name = (custom['label'] ?? '').toString().trim();
       final icon = (custom['icon'] ?? '').toString();
       final originalLabel = careTypeLabel(row);
@@ -384,11 +437,15 @@ List<Map<String, dynamic>> mergedCareCatalogForPet(
   final raw = pet['personalCareTypes'];
   if (raw is List) {
     for (final value in raw.take(30)) {
-      if (value is! Map) { continue; }
+      if (value is! Map) {
+        continue;
+      }
       final id = (value['id'] ?? '').toString();
       final label = (value['label'] ?? '').toString().trim();
-      if (!id.startsWith('personal_') || ids.contains(id) ||
-          label.isEmpty || label.length > 45) {
+      if (!id.startsWith('personal_') ||
+          ids.contains(id) ||
+          label.isEmpty ||
+          label.length > 45) {
         continue;
       }
       ids.add(id);
@@ -406,7 +463,9 @@ List<Map<String, dynamic>> mergedCareCatalogForPet(
 }
 
 Map<String, dynamic>? catalogCareById(
-    List<Map<String, dynamic>> catalog, String id) {
+  List<Map<String, dynamic>> catalog,
+  String id,
+) {
   for (final item in catalog) {
     if ((item['id'] ?? '').toString() == id) return item;
   }
@@ -414,7 +473,9 @@ Map<String, dynamic>? catalogCareById(
 }
 
 String careEntryLabel(
-    Map<String, dynamic> entry, List<Map<String, dynamic>> catalog) {
+  Map<String, dynamic> entry,
+  List<Map<String, dynamic>> catalog,
+) {
   final stored = (entry['label'] ?? '').toString().trim();
   if (stored.isNotEmpty) return stored;
   final id = (entry['type'] ?? '').toString();
@@ -423,12 +484,13 @@ String careEntryLabel(
 }
 
 IconData careEntryIcon(
-    Map<String, dynamic> entry, List<Map<String, dynamic>> catalog) {
+  Map<String, dynamic> entry,
+  List<Map<String, dynamic>> catalog,
+) {
   final id = (entry['type'] ?? '').toString();
   final found = catalogCareById(catalog, id);
   return found == null ? careIcon(id) : careTypeIcon(found);
 }
-
 
 String dateKey(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
@@ -437,6 +499,7 @@ DateTime? careDate(Map<String, dynamic> row) {
   if (value is Timestamp) return value.toDate();
   return DateTime.tryParse((value ?? '').toString());
 }
+
 bool isToday(Map<String, dynamic> row) {
   final date = careDate(row);
   return date != null && dateKey(date) == dateKey(DateTime.now());

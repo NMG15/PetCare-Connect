@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@raw/petcare_soft,@raw/petcare_chime,@drawable/ic_stat_petcare,@string/default_web_client_id" />

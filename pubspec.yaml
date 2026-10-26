@@ -1,7 +1,7 @@
 name: petcare_connect_mobile
 description: PetCare Connect - aplicación Android para gestión de mascotas y cuidados.
 publish_to: "none"
-version: 0.21.8+37
+version: 0.21.16+45
 environment:
   sdk: ">=3.7.0 <4.0.0"
 dependencies:
@@ -21,8 +21,10 @@ dependencies:
   flutter_local_notifications: ^19.5.0
   flutter_timezone: ^5.1.0
   timezone: ^0.10.1
-  flutter_facebook_auth: ^7.2.0
   shared_preferences: ^2.5.3
+  crop_your_image: 2.0.1
+  pdf: 3.11.3
+  printing: 5.14.3
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -33,3 +35,6 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icon/petcare_icon.png
+    - assets/icon/google_g_color.png
+    - assets/fonts/lato/Lato-Regular.ttf
+    - assets/fonts/lato/Lato-Bold.ttf

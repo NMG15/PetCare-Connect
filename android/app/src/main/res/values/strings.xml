@@ -1,7 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">PetCare Connect</string>
-    <string name="facebook_app_id">1792372318632375</string>
-    <string name="facebook_client_token">10c4ce71eb4cd79774f9cd42f7bd0e8b</string>
-    <string name="fb_login_protocol_scheme">fb1792372318632375</string>
 </resources>

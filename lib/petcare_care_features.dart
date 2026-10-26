@@ -2,21 +2,37 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as timezone_data;
 import 'package:timezone/timezone.dart' as tz;
 
-import 'main.dart' show
-    CloudDb,
-    catalogCareById,
-    effectiveReminderCareLabel,
-    careTypeLabel,
-    careIconChoices,
-    careIcon,
-    careNameTaken,
-    careTypeIcon;
+import 'petcare_history_pdf.dart';
+import 'package:printing/printing.dart';
+
+import 'main.dart'
+    show
+        CloudDb,
+        catalogCareById,
+        effectiveReminderCareLabel,
+        careTypeLabel,
+        careIconChoices,
+        careIcon,
+        careNameTaken,
+        careTypeIcon;
+
+const petCareReminderSoundNames = <String, String>{
+  'default': 'Predeterminado del teléfono',
+  'soft': 'Suave',
+  'chime': 'Campanita',
+};
+
+String normalizeReminderSound(Object? raw) {
+  final value = (raw ?? '').toString();
+  return petCareReminderSoundNames.containsKey(value) ? value : 'default';
+}
 
 const _green = Color(0xFF13694D);
 
@@ -35,8 +51,18 @@ String _friendlyTime(int hour, int minute) {
 }
 
 const _months = [
-  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
 ];
 
 String _careName(Map<String, dynamic> item) {
@@ -51,8 +77,11 @@ String _userUid() {
 }
 
 DocumentReference<Map<String, dynamic>> _petDoc(String petId) =>
-    FirebaseFirestore.instance.collection('users').doc(_userUid())
-        .collection('pets').doc(petId);
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(_userUid())
+        .collection('pets')
+        .doc(petId);
 
 CollectionReference<Map<String, dynamic>> _reminderDocs(String petId) =>
     _petDoc(petId).collection('reminders');
@@ -75,6 +104,36 @@ class PetCareAlerts {
     ),
   );
 
+  NotificationDetails _detailsForSound(String rawSound) {
+    final sound = normalizeReminderSound(rawSound);
+    switch (sound) {
+      case 'soft':
+        return const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'petcare_reminders_soft_v41',
+            'Recordatorios suaves',
+            channelDescription: 'Avisos suaves de cuidados PetCare',
+            importance: Importance.high,
+            priority: Priority.high,
+            sound: RawResourceAndroidNotificationSound('petcare_soft'),
+          ),
+        );
+      case 'chime':
+        return const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'petcare_reminders_chime_v41',
+            'Recordatorios con campanita',
+            channelDescription: 'Avisos de cuidados con campanita',
+            importance: Importance.high,
+            priority: Priority.high,
+            sound: RawResourceAndroidNotificationSound('petcare_chime'),
+          ),
+        );
+      default:
+        return _details;
+    }
+  }
+
   Future<void> init() async {
     if (_ready) return;
     if (!Platform.isAndroid && !Platform.isIOS) return;
@@ -94,19 +153,45 @@ class PetCareAlerts {
     _ready = true;
   }
 
+  static const MethodChannel _alarmCapabilities = MethodChannel(
+    'petcare.connect/alarms',
+  );
+
+  Future<bool> _canScheduleExactAlarms() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      return await _alarmCapabilities.invokeMethod<bool>(
+            'canScheduleExactAlarms',
+          ) ??
+          false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
   Future<bool> requestPermission() async {
     await init();
     if (Platform.isAndroid) {
-      return await _plugin
+      final android =
+          _plugin
               .resolvePlatformSpecificImplementation<
-                  AndroidFlutterLocalNotificationsPlugin>()
-              ?.requestNotificationsPermission() ??
-          false;
+                AndroidFlutterLocalNotificationsPlugin
+              >();
+      final granted = await android?.requestNotificationsPermission() ?? false;
+      if (granted && !await _canScheduleExactAlarms()) {
+        try {
+          await android?.requestExactAlarmsPermission();
+        } catch (_) {}
+      }
+      return granted;
     }
     if (Platform.isIOS) {
       return await _plugin
               .resolvePlatformSpecificImplementation<
-                  IOSFlutterLocalNotificationsPlugin>()
+                IOSFlutterLocalNotificationsPlugin
+              >()
               ?.requestPermissions(alert: true, badge: true, sound: true) ??
           false;
     }
@@ -139,7 +224,12 @@ class PetCareAlerts {
   tz.TZDateTime _nextOccurrence(int hour, int minute, int? weekday) {
     final now = tz.TZDateTime.now(tz.local);
     var candidate = tz.TZDateTime(
-      tz.local, now.year, now.month, now.day, hour, minute,
+      tz.local,
+      now.year,
+      now.month,
+      now.day,
+      hour,
+      minute,
     );
     for (var attempts = 0; attempts < 9; attempts++) {
       if (candidate.isAfter(now) &&
@@ -147,8 +237,12 @@ class PetCareAlerts {
         return candidate;
       }
       candidate = tz.TZDateTime(
-        tz.local, candidate.year, candidate.month, candidate.day + 1,
-        hour, minute,
+        tz.local,
+        candidate.year,
+        candidate.month,
+        candidate.day + 1,
+        hour,
+        minute,
       );
     }
     throw StateError('No se pudo calcular el próximo aviso.');
@@ -165,45 +259,84 @@ class PetCareAlerts {
     required int hour,
     required int minute,
     required int? weekday,
+    required String soundId,
   }) async {
     final when = _nextOccurrence(hour, minute, weekday);
     final id = _uniqueId(uid, petId, reminderId, weekday ?? 0);
-    final foodCare = careId == 'feeding' ||
+    final foodCare =
+        careId == 'feeding' ||
         label.toLowerCase().contains('alimentaci') ||
         label.toLowerCase().contains('comida');
-    final message = foodCare
-        ? 'Es hora de darle de comer a $petName. ¡Registra su comida en PetCare!'
-        : 'Es hora de «$label» para $petName. Regístralo en PetCare.';
-    final body = note.trim().isEmpty ? message : '$message Nota: ${note.trim()}';
-    await _plugin.zonedSchedule(
-      id,
-      'Hora de cuidar a $petName 🐾',
-      body,
-      when,
-      _details,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      matchDateTimeComponents: weekday == null
-          ? DateTimeComponents.time
-          : DateTimeComponents.dayOfWeekAndTime,
-      payload: 'pet:$petId',
-    );
+    final message =
+        foodCare
+            ? 'Es hora de darle de comer a $petName. ¡Registra su comida en PetCare!'
+            : 'Es hora de «$label» para $petName. Regístralo en PetCare.';
+    final body =
+        note.trim().isEmpty ? message : '$message Nota: ${note.trim()}';
+
+    final alarmMode =
+        await _canScheduleExactAlarms()
+            ? AndroidScheduleMode.exactAllowWhileIdle
+            : AndroidScheduleMode.inexactAllowWhileIdle;
+    Future<void> scheduleWithMode(AndroidScheduleMode mode) async {
+      await _plugin.zonedSchedule(
+        id,
+        'Hora de cuidar a $petName 🐾',
+        body,
+        when,
+        _detailsForSound(soundId),
+        androidScheduleMode: mode,
+        matchDateTimeComponents:
+            weekday == null
+                ? DateTimeComponents.time
+                : DateTimeComponents.dayOfWeekAndTime,
+        payload: 'pet:$petId',
+      );
+    }
+
+    try {
+      await scheduleWithMode(alarmMode);
+    } on PlatformException {
+      if (alarmMode != AndroidScheduleMode.exactAllowWhileIdle) rethrow;
+
+      await scheduleWithMode(AndroidScheduleMode.inexactAllowWhileIdle);
+    }
   }
 
   Future<void> syncForUser(String userId) async {
     await init();
-    final pets = await FirebaseFirestore.instance.collection('users')
-        .doc(userId).collection('pets').get();
-    final schedules = <({String petId, String petName, String reminderId,
-        String label, String careId, String note,
-        int hour, int minute, List<int> days})>[];
+    if (FirebaseAuth.instance.currentUser?.uid != userId) return;
+    final pets =
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .collection('pets')
+            .get();
+    final schedules =
+        <
+          ({
+            String petId,
+            String petName,
+            String reminderId,
+            String label,
+            String careId,
+            String note,
+            int hour,
+            int minute,
+            List<int> days,
+            String soundId,
+          })
+        >[];
 
     for (final pet in pets.docs) {
       final data = pet.data();
-      final hidden = (data['hiddenCareIds'] as List?)
-              ?.map((e) => e.toString()).toSet() ??
+      final hidden =
+          (data['hiddenCareIds'] as List?)?.map((e) => e.toString()).toSet() ??
           <String>{};
       final catalog = await CloudDb.instance.careCatalogForPet(
-          (data['species'] ?? '').toString(), data);
+        (data['species'] ?? '').toString(),
+        data,
+      );
       final reminders = await pet.reference.collection('reminders').get();
       for (final reminder in reminders.docs) {
         final row = reminder.data();
@@ -212,68 +345,139 @@ class PetCareAlerts {
         final hour = (row['hour'] as num?)?.toInt() ?? -1;
         final minute = (row['minute'] as num?)?.toInt() ?? -1;
         if (hour < 0 || hour > 23 || minute < 0 || minute > 59) continue;
-        final days = (row['days'] as List?)
-                ?.whereType<num>().map((e) => e.toInt())
-                .where((d) => d >= 1 && d <= 7).toList() ??
+        final days =
+            (row['days'] as List?)
+                ?.whereType<num>()
+                .map((e) => e.toInt())
+                .where((d) => d >= 1 && d <= 7)
+                .toList() ??
             <int>[];
         schedules.add((
           petId: pet.id,
           petName: (data['name'] ?? 'tu mascota').toString(),
           reminderId: reminder.id,
-          label: catalogCareById(catalog, careId) == null
-              ? effectiveReminderCareLabel(data, careId,
-                  (row['careLabel'] ?? 'un cuidado').toString())
-              : careTypeLabel(catalogCareById(catalog, careId)!),
+          label:
+              catalogCareById(catalog, careId) == null
+                  ? effectiveReminderCareLabel(
+                    data,
+                    careId,
+                    (row['careLabel'] ?? 'un cuidado').toString(),
+                  )
+                  : careTypeLabel(catalogCareById(catalog, careId)!),
           careId: careId,
           note: (row['note'] ?? '').toString(),
           hour: hour,
           minute: minute,
           days: days,
+          soundId: normalizeReminderSound(row['soundId']),
         ));
       }
     }
 
-    await _plugin.cancelAll();
+    final desiredIds = <int>{};
     for (final reminder in schedules) {
-      final days = reminder.days;
-      if (days.isEmpty) {
-        await _scheduleOne(
-          uid: userId, petId: reminder.petId,
-          petName: reminder.petName, reminderId: reminder.reminderId,
-          label: reminder.label, careId: reminder.careId,
-          note: reminder.note, hour: reminder.hour,
-          minute: reminder.minute, weekday: null,
+      if (reminder.days.isEmpty) {
+        desiredIds.add(
+          _uniqueId(userId, reminder.petId, reminder.reminderId, 0),
         );
       } else {
-        for (final weekday in days.toSet()) {
-          await _scheduleOne(
-            uid: userId, petId: reminder.petId,
-            petName: reminder.petName, reminderId: reminder.reminderId,
-            label: reminder.label, careId: reminder.careId,
-            note: reminder.note, hour: reminder.hour,
-            minute: reminder.minute, weekday: weekday,
+        for (final weekday in reminder.days.toSet()) {
+          desiredIds.add(
+            _uniqueId(userId, reminder.petId, reminder.reminderId, weekday),
           );
         }
       }
     }
+
+    if (FirebaseAuth.instance.currentUser?.uid != userId) return;
+    for (final reminder in schedules) {
+      final days = reminder.days;
+      if (days.isEmpty) {
+        await _scheduleOne(
+          uid: userId,
+          petId: reminder.petId,
+          petName: reminder.petName,
+          reminderId: reminder.reminderId,
+          label: reminder.label,
+          careId: reminder.careId,
+          note: reminder.note,
+          hour: reminder.hour,
+          minute: reminder.minute,
+          weekday: null,
+          soundId: reminder.soundId,
+        );
+      } else {
+        for (final weekday in days.toSet()) {
+          await _scheduleOne(
+            uid: userId,
+            petId: reminder.petId,
+            petName: reminder.petName,
+            reminderId: reminder.reminderId,
+            label: reminder.label,
+            careId: reminder.careId,
+            note: reminder.note,
+            hour: reminder.hour,
+            minute: reminder.minute,
+            weekday: weekday,
+            soundId: reminder.soundId,
+          );
+        }
+      }
+    }
+
+    if (FirebaseAuth.instance.currentUser?.uid != userId) return;
+    final pending = await _plugin.pendingNotificationRequests();
+    if (FirebaseAuth.instance.currentUser?.uid != userId) return;
+    final staleIds = stalePetCareReminderIds(
+      pending.map((item) => (id: item.id, payload: item.payload)),
+      desiredIds,
+    );
+    for (final id in staleIds) {
+      if (FirebaseAuth.instance.currentUser?.uid != userId) return;
+      await _plugin.cancel(id);
+    }
   }
 }
 
-List<Map<String, dynamic>> remindersForCare(
-    List<Map<String, dynamic>> rows, String careId) =>
-    rows.where((row) => (row['careId'] ?? '').toString() == careId)
-        .toList(growable: false);
+Set<int> stalePetCareReminderIds(
+  Iterable<({int id, String? payload})> pending,
+  Set<int> desiredIds,
+) {
+  return pending
+      .where(
+        (item) =>
+            item.payload != null &&
+            item.payload!.startsWith('pet:') &&
+            !desiredIds.contains(item.id),
+      )
+      .map((item) => item.id)
+      .toSet();
+}
 
-bool canAddReminderForCare(List<Map<String, dynamic>> reminders, String careId) {
+List<Map<String, dynamic>> remindersForCare(
+  List<Map<String, dynamic>> rows,
+  String careId,
+) => rows
+    .where((row) => (row['careId'] ?? '').toString() == careId)
+    .toList(growable: false);
+
+bool canAddReminderForCare(
+  List<Map<String, dynamic>> reminders,
+  String careId,
+) {
   return !reminders.any((item) => (item['careId'] ?? '').toString() == careId);
 }
 
 List<Map<String, dynamic>> caresWithoutReminder(
-    List<Map<String, dynamic>> catalog,
-    List<Map<String, dynamic>> reminders) {
-  return catalog.where((care) => canAddReminderForCare(
-    reminders, (care['id'] ?? '').toString(),
-  )).toList(growable: false);
+  List<Map<String, dynamic>> catalog,
+  List<Map<String, dynamic>> reminders,
+) {
+  return catalog
+      .where(
+        (care) =>
+            canAddReminderForCare(reminders, (care['id'] ?? '').toString()),
+      )
+      .toList(growable: false);
 }
 
 String careScheduleSummary(List<Map<String, dynamic>> rows) {
@@ -284,8 +488,12 @@ String careScheduleSummary(List<Map<String, dynamic>> rows) {
   final row = rows.first;
   final hour = (row['hour'] as num?)?.toInt();
   final minute = (row['minute'] as num?)?.toInt();
-  if (hour == null || minute == null || hour < 0 || hour > 23 ||
-      minute < 0 || minute > 59) {
+  if (hour == null ||
+      minute == null ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59) {
     return '1 horario';
   }
   return 'Aviso: ${_friendlyTime(hour, minute)}';
@@ -296,7 +504,10 @@ class PetCareVisibilityPage extends StatefulWidget {
   final String petName;
   final String species;
   const PetCareVisibilityPage({
-    super.key, required this.petId, required this.petName, required this.species,
+    super.key,
+    required this.petId,
+    required this.petName,
+    required this.species,
   });
 
   @override
@@ -324,15 +535,17 @@ class _PetCareVisibilityPageState extends State<PetCareVisibilityPage> {
       final pet = await _petDoc(widget.petId).get();
       final data = pet.data() ?? <String, dynamic>{};
       final shown = await CloudDb.instance.careCatalogForPet(
-          widget.species, data);
+        widget.species,
+        data,
+      );
       List<Map<String, dynamic>> savedSchedules = [];
       try {
         final scheduleSnap = await _reminderDocs(widget.petId).get();
-        savedSchedules = scheduleSnap.docs
-            .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
-            .toList();
-      } catch (_) {
-      }
+        savedSchedules =
+            scheduleSnap.docs
+                .map((doc) => <String, dynamic>{'id': doc.id, ...doc.data()})
+                .toList();
+      } catch (_) {}
       final custom = data['personalCareTypes'];
       final personal = <Map<String, dynamic>>[];
       if (custom is List) {
@@ -348,11 +561,14 @@ class _PetCareVisibilityPageState extends State<PetCareVisibilityPage> {
           catalog = shown;
           personalCare = personal;
           petReminders = savedSchedules;
-          careOverrides = data['careOverrides'] is Map
-              ? Map<String, dynamic>.from(data['careOverrides'] as Map)
-              : <String, dynamic>{};
-          hidden = (pet.data()?['hiddenCareIds'] as List?)
-                  ?.map((e) => e.toString()).toSet() ??
+          careOverrides =
+              data['careOverrides'] is Map
+                  ? Map<String, dynamic>.from(data['careOverrides'] as Map)
+                  : <String, dynamic>{};
+          hidden =
+              (pet.data()?['hiddenCareIds'] as List?)
+                  ?.map((e) => e.toString())
+                  .toSet() ??
               <String>{};
           busy = false;
         });
@@ -372,24 +588,32 @@ class _PetCareVisibilityPageState extends State<PetCareVisibilityPage> {
       updated.add(careId);
     }
     try {
-      await _petDoc(widget.petId).set(
-        {'hiddenCareIds': updated.toList()}, SetOptions(merge: true),
-      );
+      await _petDoc(
+        widget.petId,
+      ).set({'hiddenCareIds': updated.toList()}, SetOptions(merge: true));
       if (mounted) setState(() => hidden = updated);
       try {
         await PetCareAlerts.instance.syncForUser(_userUid());
       } catch (_) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Visibilidad guardada, pero no se pudo actualizar los avisos en este teléfono.'),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Visibilidad guardada, pero no se pudo actualizar los avisos en este teléfono.',
+              ),
+            ),
+          );
         }
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('No se pudo guardar la visibilidad. Comprueba Internet.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se pudo guardar la visibilidad. Comprueba Internet.',
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => updatingVisibility.remove(careId));
@@ -397,298 +621,473 @@ class _PetCareVisibilityPageState extends State<PetCareVisibilityPage> {
   }
 
   Future<void> editCare([Map<String, dynamic>? item]) async {
-    if (editing) { return; }
+    if (editing) {
+      return;
+    }
     final isPersonal = item == null || item['personal'] == true;
-    final controller = TextEditingController(text: (item?['label'] ?? '').toString());
+    final controller = TextEditingController(
+      text: (item?['label'] ?? '').toString(),
+    );
     var icon = (item?['icon'] ?? 'pets').toString();
-    if (!careIconChoices.containsKey(icon)) { icon = 'pets'; }
+    if (!careIconChoices.containsKey(icon)) {
+      icon = 'pets';
+    }
     final form = await showDialog<Map<String, String>>(
       context: context,
-      builder: (dialog) => StatefulBuilder(
-        builder: (dialog, setFormState) => AlertDialog(
-          title: Text(item == null ? 'Agregar cuidado'
-              : isPersonal ? 'Editar cuidado personal' : 'Editar cuidado de base'),
-          content: SingleChildScrollView(child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: controller,
-                maxLength: 45,
-                textCapitalization: TextCapitalization.sentences,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Nombre del cuidado',
-                  hintText: 'Ej. Agua especial, comida o medicina',
+      builder:
+          (dialog) => StatefulBuilder(
+            builder:
+                (dialog, setFormState) => AlertDialog(
+                  title: Text(
+                    item == null
+                        ? 'Agregar cuidado'
+                        : isPersonal
+                        ? 'Editar cuidado personal'
+                        : 'Editar cuidado de base',
+                  ),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextField(
+                          controller: controller,
+                          maxLength: 45,
+                          textCapitalization: TextCapitalization.sentences,
+                          autofocus: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Nombre del cuidado',
+                            hintText: 'Ej. Agua especial, comida o medicina',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          initialValue: icon,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Icono del cuidado',
+                          ),
+                          items:
+                              careIconChoices.entries
+                                  .map(
+                                    (choice) => DropdownMenuItem(
+                                      value: choice.key,
+                                      child: Row(
+                                        children: [
+                                          Icon(careIcon(choice.key), size: 19),
+                                          const SizedBox(width: 11),
+                                          Flexible(
+                                            child: Text(
+                                              choice.value,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                          onChanged: (choice) {
+                            if (choice != null) {
+                              setFormState(() => icon = choice);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialog),
+                      child: const Text('Cancelar'),
+                    ),
+                    FilledButton(
+                      onPressed: () {
+                        final label = controller.text.trim();
+                        if (label.isNotEmpty) {
+                          Navigator.pop(dialog, {'label': label, 'icon': icon});
+                        }
+                      },
+                      child: const Text('Guardar'),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: icon,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Icono del cuidado'),
-                items: careIconChoices.entries.map((choice) => DropdownMenuItem(
-                  value: choice.key,
-                  child: Row(children: [
-                    Icon(careIcon(choice.key), size: 19),
-                    const SizedBox(width: 11),
-                    Flexible(child: Text(choice.value,
-                      overflow: TextOverflow.ellipsis)),
-                  ]),
-                )).toList(),
-                onChanged: (choice) {
-                  if (choice != null) { setFormState(() => icon = choice); }
-                },
-              ),
-
-            ],
-          )),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialog),
-                child: const Text('Cancelar')),
-            FilledButton(onPressed: () {
-              final label = controller.text.trim();
-              if (label.isNotEmpty) {
-                Navigator.pop(dialog, {'label': label, 'icon': icon});
-              }
-            }, child: const Text('Guardar')),
-          ],
-        ),
-      ),
+          ),
     );
     controller.dispose();
-    if (form == null || !mounted) { return; }
+    if (form == null || !mounted) {
+      return;
+    }
     final label = (form['label'] ?? '').trim();
     final selectedIcon = form['icon'] ?? 'pets';
-    if (label.isEmpty || label.length > 45) { return; }
-    if (careNameTaken(catalog, label,
-        exceptId: item == null ? null : (item['id'] ?? '').toString())) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Ya tienes un cuidado con ese nombre. '
-            'Edítalo en lugar de crear otro.'),
-      ));
+    if (label.isEmpty || label.length > 45) {
+      return;
+    }
+    if (careNameTaken(
+      catalog,
+      label,
+      exceptId: item == null ? null : (item['id'] ?? '').toString(),
+    )) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Ya tienes un cuidado con ese nombre. '
+            'Edítalo en lugar de crear otro.',
+          ),
+        ),
+      );
       return;
     }
     if (item == null && personalCare.length >= 30) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Límite de 30 cuidados personales por mascota.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Límite de 30 cuidados personales por mascota.'),
+        ),
+      );
       return;
     }
     setState(() => editing = true);
+    final previousCatalog = catalog;
+    final selectedId = item?['id']?.toString();
+    final newPersonalId =
+        item == null
+            ? 'personal_${DateTime.now().microsecondsSinceEpoch}'
+            : null;
+
+    setState(() {
+      if (newPersonalId != null) {
+        catalog = [
+          ...catalog,
+          <String, dynamic>{
+            'id': newPersonalId,
+            'label': label,
+            'icon': selectedIcon,
+            'personal': true,
+          },
+        ];
+      } else if (selectedId != null) {
+        catalog =
+            catalog.map((care) {
+              if (care['id'].toString() != selectedId) return care;
+              return <String, dynamic>{
+                ...care,
+                'label': label,
+                'icon': selectedIcon,
+              };
+            }).toList();
+      }
+    });
     try {
       if (isPersonal) {
-        final revised = personalCare
-            .map((row) => Map<String, dynamic>.from(row)).toList();
+        final revised =
+            personalCare.map((row) => Map<String, dynamic>.from(row)).toList();
         if (item == null) {
           revised.add({
-            'id': 'personal_${DateTime.now().microsecondsSinceEpoch}',
+            'id': newPersonalId,
             'label': label,
             'icon': selectedIcon,
           });
         } else {
           final index = revised.indexWhere((row) => row['id'] == item['id']);
-          if (index < 0) { throw StateError('Cuidado no encontrado.'); }
+          if (index < 0) {
+            throw StateError('Cuidado no encontrado.');
+          }
           revised[index]['label'] = label;
           revised[index]['icon'] = selectedIcon;
         }
-        await CloudDb.instance.updatePet(widget.petId,
-            {'personalCareTypes': revised});
+        await CloudDb.instance.updatePet(widget.petId, {
+          'personalCareTypes': revised,
+        });
       } else {
         final id = (item['id'] ?? '').toString();
         final revised = Map<String, dynamic>.from(careOverrides);
         revised[id] = {'label': label, 'icon': selectedIcon};
-        await CloudDb.instance.updatePet(widget.petId,
-            {'careOverrides': revised});
+        await CloudDb.instance.updatePet(widget.petId, {
+          'careOverrides': revised,
+        });
       }
       await load();
       try {
         await PetCareAlerts.instance.syncForUser(_userUid());
       } catch (_) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Se guardó el cuidado, pero no se pudieron '
-                'actualizar los avisos de este dispositivo. Revisa tus horarios.'),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Se guardó el cuidado, pero no se pudieron '
+                'actualizar los avisos de este dispositivo. Revisa tus horarios.',
+              ),
+            ),
+          );
         }
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Cambios guardados para esta mascota.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cambios guardados para esta mascota.')),
+        );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('No se pudo guardar. Comprueba tu conexión.'),
-        ));
+        setState(() => catalog = previousCatalog);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo guardar. Comprueba tu conexión.'),
+          ),
+        );
       }
     } finally {
-      if (mounted) { setState(() => editing = false); }
+      if (mounted) {
+        setState(() => editing = false);
+      }
     }
   }
 
   Future<void> openCareSchedules(Map<String, dynamic> care) async {
     if (hidden.contains((care['id'] ?? '').toString())) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Activa el cuidado para configurar su horario.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Activa el cuidado para configurar su horario.'),
+        ),
+      );
       return;
     }
     final id = (care['id'] ?? '').toString();
     final schedules = remindersForCare(petReminders, id);
     if (schedules.length > 1) {
-      await Navigator.push<void>(context, MaterialPageRoute(
-        builder: (_) => PetRemindersPage(
-          petId: widget.petId,
-          petName: widget.petName,
-          species: widget.species,
-          focusCareId: id,
+      await Navigator.push<void>(
+        context,
+        MaterialPageRoute(
+          builder:
+              (_) => PetRemindersPage(
+                petId: widget.petId,
+                petName: widget.petName,
+                species: widget.species,
+                focusCareId: id,
+              ),
         ),
-      ));
+      );
     } else {
-      await Navigator.push<bool>(context, MaterialPageRoute(
-        builder: (_) => ReminderEditorPage(
-          petId: widget.petId,
-          petName: widget.petName,
-          careTypes: [care],
-          initialCareId: id,
-          existing: schedules.isEmpty ? null : schedules.first,
+      await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder:
+              (_) => ReminderEditorPage(
+                petId: widget.petId,
+                petName: widget.petName,
+                careTypes: [care],
+                initialCareId: id,
+                existing: schedules.isEmpty ? null : schedules.first,
+              ),
         ),
-      ));
+      );
     }
     if (mounted) await load();
   }
 
   Future<void> resetBaseCare(Map<String, dynamic> care) async {
-    if (editing) { return; }
+    if (editing) {
+      return;
+    }
     final id = (care['id'] ?? '').toString();
-    if (careOverrides[id] == null) { return; }
+    if (careOverrides[id] == null) {
+      return;
+    }
     setState(() => editing = true);
     try {
       final revised = Map<String, dynamic>.from(careOverrides)..remove(id);
-      await CloudDb.instance.updatePet(widget.petId, {'careOverrides': revised});
+      await CloudDb.instance.updatePet(widget.petId, {
+        'careOverrides': revised,
+      });
       await load();
       try {
         await PetCareAlerts.instance.syncForUser(_userUid());
       } catch (_) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Nombre restaurado, pero los avisos no pudieron actualizarse.'),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Nombre restaurado, pero los avisos no pudieron actualizarse.',
+              ),
+            ),
+          );
         }
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('No se pudo restaurar el nombre original.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo restaurar el nombre original.'),
+          ),
+        );
       }
     } finally {
-      if (mounted) { setState(() => editing = false); }
+      if (mounted) {
+        setState(() => editing = false);
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text('Personalizar cuidados')),
-        body: busy ? Center(child: CircularProgressIndicator())
+    appBar: AppBar(title: Text('Personalizar cuidados')),
+    body:
+        busy
+            ? Center(child: CircularProgressIndicator())
             : ListView(
-                padding: const EdgeInsets.all(18),
-                children: [
-                  SizedBox(width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: editing ? null : () => editCare(),
-                      icon: const Icon(Icons.add_rounded),
-                      label: const Text('Nuevo cuidado'),
+              padding: const EdgeInsets.all(18),
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: editing ? null : () => editCare(),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Nuevo cuidado'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (catalog.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Text(
+                        'Todavía no hay cuidados para esta especie. '
+                        'Puedes agregar uno personalizado.',
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  if (catalog.isEmpty)
-                    const Card(child: Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text('Todavía no hay cuidados para esta especie. '
-                          'Puedes agregar uno personalizado.'),
-                    )),
-                  ...catalog.map((care) {
-                    final id = care['id'].toString();
-                    final visible = !hidden.contains(id);
-                    final isPersonal = care['personal'] == true;
-                    final scheme = Theme.of(context).colorScheme;
-                    final dark = Theme.of(context).brightness == Brightness.dark;
-                    final accent = dark ? const Color(0xFF47E6A1)
-                        : const Color(0xFF13694D);
-                    final schedules = remindersForCare(petReminders, id);
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      color: scheme.surfaceContainerLow,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(17),
-                        side: BorderSide(color: visible
-                          ? scheme.outlineVariant : scheme.outlineVariant.withValues(alpha: 0.6)),
+                ...([...catalog]..sort((a, b) {
+                  final ap = a['personal'] == true ? 0 : 1;
+                  final bp = b['personal'] == true ? 0 : 1;
+                  return ap.compareTo(bp);
+                })).map((care) {
+                  final id = care['id'].toString();
+                  final visible = !hidden.contains(id);
+                  final isPersonal = care['personal'] == true;
+                  final scheme = Theme.of(context).colorScheme;
+                  final dark = Theme.of(context).brightness == Brightness.dark;
+                  final accent =
+                      dark ? const Color(0xFF47E6A1) : const Color(0xFF13694D);
+                  final schedules = remindersForCare(petReminders, id);
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    color: scheme.surfaceContainerLow,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(17),
+                      side: BorderSide(
+                        color:
+                            visible
+                                ? scheme.outlineVariant
+                                : scheme.outlineVariant.withValues(alpha: 0.6),
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(14, 10, 12, 11),
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(children: [
-                              SizedBox(width: 36, height: 36,
-                                child: Icon(careTypeIcon(care),
-                                  color: visible ? accent : scheme.onSurfaceVariant)),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 10, 12, 11),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              SizedBox(
+                                width: 36,
+                                height: 36,
+                                child: Icon(
+                                  careTypeIcon(care),
+                                  color:
+                                      visible
+                                          ? accent
+                                          : scheme.onSurfaceVariant,
+                                ),
+                              ),
                               const SizedBox(width: 10),
-                              Expanded(child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(_careName(care), maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(fontWeight: FontWeight.w800,
-                                      color: scheme.onSurface)),
-                                  Text(visible ? careScheduleSummary(schedules) : 'Oculto',
-                                    style: TextStyle(fontSize: 12,
-                                      color: scheme.onSurfaceVariant)),
-                                ],
-                              )),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _careName(care),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        color: scheme.onSurface,
+                                      ),
+                                    ),
+                                    Text(
+                                      visible
+                                          ? careScheduleSummary(schedules)
+                                          : 'Oculto',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: scheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                               Semantics(
                                 label: 'Mostrar ${_careName(care)}',
                                 child: Switch(
                                   value: visible,
                                   activeTrackColor: accent,
-                                  activeThumbColor: dark ? const Color(0xFF052819)
-                                      : Colors.white,
-                                  onChanged: editing || updatingVisibility.contains(id)
-                                      ? null : (value) => change(id, value),
+                                  activeThumbColor:
+                                      dark
+                                          ? const Color(0xFF052819)
+                                          : Colors.white,
+                                  onChanged:
+                                      editing || updatingVisibility.contains(id)
+                                          ? null
+                                          : (value) => change(id, value),
                                 ),
                               ),
-                            ]),
-                            const SizedBox(height: 4),
-                            Row(children: [
-                              Expanded(child: TextButton.icon(
-                                onPressed: editing ? null : () => editCare(care),
-                                icon: const Icon(Icons.edit_outlined, size: 17),
-                                label: const Text('Editar'),
-                              )),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextButton.icon(
+                                  onPressed:
+                                      editing ? null : () => editCare(care),
+                                  icon: const Icon(
+                                    Icons.edit_outlined,
+                                    size: 17,
+                                  ),
+                                  label: const Text('Editar'),
+                                ),
+                              ),
                               const SizedBox(width: 8),
-                              Expanded(child: OutlinedButton.icon(
-                                onPressed: editing || !visible
-                                    ? null : () => openCareSchedules(care),
-                                icon: const Icon(Icons.schedule_outlined, size: 17),
-                                label: Text(schedules.length > 1 ? 'Horarios' : 'Hora'),
-                              )),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed:
+                                      editing || !visible
+                                          ? null
+                                          : () => openCareSchedules(care),
+                                  icon: const Icon(
+                                    Icons.schedule_outlined,
+                                    size: 17,
+                                  ),
+                                  label: Text('Configurar horario'),
+                                ),
+                              ),
                               if (!isPersonal && care['userEdited'] == true)
                                 IconButton(
                                   tooltip: 'Restaurar nombre e icono',
-                                  onPressed: editing ? null : () => resetBaseCare(care),
+                                  onPressed:
+                                      editing
+                                          ? null
+                                          : () => resetBaseCare(care),
                                   icon: const Icon(Icons.restart_alt_rounded),
                                 ),
-                            ]),
-                          ],
-                        ),
+                            ],
+                          ),
+                        ],
                       ),
-                    );
-                  }),
-                ],
-              ),
-      );
+                    ),
+                  );
+                }),
+              ],
+            ),
+  );
 }
 
 class PetRemindersPage extends StatefulWidget {
@@ -696,9 +1095,14 @@ class PetRemindersPage extends StatefulWidget {
   final String petName;
   final String species;
   final String? focusCareId;
+  final VoidCallback? onScheduleChanged;
   const PetRemindersPage({
-    super.key, required this.petId, required this.petName, required this.species,
+    super.key,
+    required this.petId,
+    required this.petName,
+    required this.species,
     this.focusCareId,
+    this.onScheduleChanged,
   });
   @override
   State<PetRemindersPage> createState() => _PetRemindersPageState();
@@ -718,101 +1122,178 @@ class _PetRemindersPageState extends State<PetRemindersPage> {
   Future<void> load() async {
     try {
       final pet = await _petDoc(widget.petId).get();
-      final hidden = (pet.data()?['hiddenCareIds'] as List?)
-              ?.map((e) => e.toString()).toSet() ??
+      final hidden =
+          (pet.data()?['hiddenCareIds'] as List?)
+              ?.map((e) => e.toString())
+              .toSet() ??
           <String>{};
       final types = await CloudDb.instance.careCatalogForPet(
-          widget.species, pet.data() ?? <String, dynamic>{});
+        widget.species,
+        pet.data() ?? <String, dynamic>{},
+      );
       final remindersSnap = await _reminderDocs(widget.petId).get();
       if (mounted) {
         setState(() {
-          reminders = remindersSnap.docs
-              .map((d) => <String, dynamic>{'id': d.id, ...d.data()})
-              .where((d) => widget.focusCareId == null ||
-                  d['careId'] == widget.focusCareId)
-              .toList()
-            ..sort((a, b) {
-              final first = ((a['hour'] as num?)?.toInt() ?? 0) * 60 +
-                  ((a['minute'] as num?)?.toInt() ?? 0);
-              final second = ((b['hour'] as num?)?.toInt() ?? 0) * 60 +
-                  ((b['minute'] as num?)?.toInt() ?? 0);
-              return first.compareTo(second);
-            });
-          careTypes = types.where((e) => e['active'] != false &&
-                !hidden.contains(e['id']) &&
-                (widget.focusCareId == null || e['id'] == widget.focusCareId))
-              .toList();
+          reminders =
+              remindersSnap.docs
+                  .map((d) => <String, dynamic>{'id': d.id, ...d.data()})
+                  .where(
+                    (d) =>
+                        widget.focusCareId == null ||
+                        d['careId'] == widget.focusCareId,
+                  )
+                  .toList()
+                ..sort((a, b) {
+                  final first =
+                      ((a['hour'] as num?)?.toInt() ?? 0) * 60 +
+                      ((a['minute'] as num?)?.toInt() ?? 0);
+                  final second =
+                      ((b['hour'] as num?)?.toInt() ?? 0) * 60 +
+                      ((b['minute'] as num?)?.toInt() ?? 0);
+                  return first.compareTo(second);
+                });
+          careTypes =
+              types
+                  .where(
+                    (e) =>
+                        e['active'] != false &&
+                        !hidden.contains(e['id']) &&
+                        (widget.focusCareId == null ||
+                            e['id'] == widget.focusCareId),
+                  )
+                  .toList();
           busy = false;
         });
       }
     } catch (_) {
       if (mounted) {
         setState(() => busy = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('No se pudieron cargar los horarios. Revisa Internet.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'No se pudieron cargar los horarios. Revisa Internet.',
+            ),
+          ),
+        );
       }
     }
   }
 
   Future<void> edit([Map<String, dynamic>? existing]) async {
-    final choices = existing == null
-        ? caresWithoutReminder(careTypes, reminders)
-        : careTypes.where((care) =>
-            care['id'].toString() == (existing['careId'] ?? '').toString())
-            .toList(growable: false);
+    final choices =
+        existing == null
+            ? caresWithoutReminder(careTypes, reminders)
+            : careTypes
+                .where(
+                  (care) =>
+                      care['id'].toString() ==
+                      (existing['careId'] ?? '').toString(),
+                )
+                .toList(growable: false);
     if (choices.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Este cuidado ya tiene horario. Edítalo.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Este cuidado ya tiene horario. Edítalo.'),
+          ),
+        );
       }
       return;
     }
-    final changed = await Navigator.push<bool>(context, MaterialPageRoute(
-      builder: (_) => ReminderEditorPage(
-        petId: widget.petId,
-        petName: widget.petName,
-        careTypes: choices,
-        initialCareId: existing == null ? widget.focusCareId
-            : existing['careId'].toString(),
-        existing: existing,
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder:
+            (_) => ReminderEditorPage(
+              petId: widget.petId,
+              petName: widget.petName,
+              careTypes: choices,
+              initialCareId:
+                  existing == null
+                      ? widget.focusCareId
+                      : existing['careId'].toString(),
+              existing: existing,
+            ),
       ),
-    ));
-    if (changed == true && mounted) await load();
+    );
+    if (changed == true && mounted) {
+      widget.onScheduleChanged?.call();
+      await load();
+    }
   }
 
   Future<void> delete(Map<String, dynamic> row) async {
-    final ok = await showDialog<bool>(context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Eliminar horario'),
-        content: Text('¿Quitar el aviso de «${row['careLabel']}» a las '
-            '${_timeLabel((row['hour'] as num).toInt(), (row['minute'] as num).toInt())}? '
-            'Los cuidados ya registrados seguirán en el historial.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Cancelar')),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-              foregroundColor: Theme.of(ctx).colorScheme.onError,
+    final ok = await showDialog<bool>(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: Text('Eliminar horario'),
+            content: Text(
+              '¿Quitar el aviso de «${row['careLabel']}» a las '
+              '${_timeLabel((row['hour'] as num).toInt(), (row['minute'] as num).toInt())}? '
+              'Los cuidados ya registrados seguirán en el historial.',
             ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Eliminar horario'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('Cancelar'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(ctx).colorScheme.error,
+                  foregroundColor: Theme.of(ctx).colorScheme.onError,
+                ),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text('Eliminar horario'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
     if (ok != true) return;
+    final reminderId = row['id'].toString();
+    final savedReminder = Map<String, dynamic>.from(row)..remove('id');
     try {
-      await _reminderDocs(widget.petId).doc(row['id'].toString()).delete();
+      await _reminderDocs(widget.petId).doc(reminderId).delete();
+      widget.onScheduleChanged?.call();
       await PetCareAlerts.instance.syncForUser(_userUid());
       await load();
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text('Horario eliminado.'),
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(
+            label: 'Deshacer',
+            onPressed: () async {
+              try {
+                await _reminderDocs(
+                  widget.petId,
+                ).doc(reminderId).set(savedReminder);
+                widget.onScheduleChanged?.call();
+                await PetCareAlerts.instance.syncForUser(_userUid());
+                if (mounted) await load();
+              } catch (_) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'No se pudo restaurar el horario. Revisa la conexión.',
+                      ),
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ),
+      );
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('No se pudo eliminar el horario.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo eliminar el horario.')),
+        );
       }
     }
   }
@@ -820,130 +1301,341 @@ class _PetRemindersPageState extends State<PetRemindersPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text('Horarios de ${widget.petName}')),
-    body: busy ? Center(child: CircularProgressIndicator())
-        : RefreshIndicator(
-          onRefresh: load,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 12, 18, 36),
-            children: [
-              if (widget.focusCareId != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    _careName(careTypes.firstWhere(
-                      (row) => row['id'] == widget.focusCareId,
-                      orElse: () => <String, dynamic>{'label': 'Cuidado'},
-                    )),
-                    style: const TextStyle(fontSize: 20,
-                        fontWeight: FontWeight.w800),
-                  ),
-                ),
-              Row(children: [
-                Expanded(child: Text('${reminders.length} ${reminders.length == 1 ? 'horario' : 'horarios'}',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
-                      color: Theme.of(context).colorScheme.onSurface))),
-                if (widget.focusCareId == null)
-                  TextButton.icon(
-                    onPressed: () async {
-                      await Navigator.push<void>(context, MaterialPageRoute(
-                        builder: (_) => PetCareVisibilityPage(
-                          petId: widget.petId, petName: widget.petName,
-                          species: widget.species,
-                        ),
-                      ));
-                      if (mounted) await load();
-                    },
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('Nuevo cuidado'),
-                  ),
-              ]),
-              const SizedBox(height: 10),
-              if (caresWithoutReminder(careTypes, reminders).isNotEmpty) ...[
-                SizedBox(width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: () => edit(),
-                    icon: const Icon(Icons.add_alarm_rounded),
-                    label: const Text('Nuevo horario'),
-                  ),
-                ),
-                const SizedBox(height: 14),
-              ],
-              if (reminders.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Text('Sin avisos programados.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                ),
-              ...reminders.map((row) {
-                final hour = (row['hour'] as num?)?.toInt() ?? 0;
-                final minute = (row['minute'] as num?)?.toInt() ?? 0;
-                final days = (row['days'] as List?)?.whereType<num>()
-                    .map((value) => value.toInt())
-                    .where((value) => value >= 1 && value <= 7).toList() ?? <int>[];
-                final daysLabel = days.isEmpty ? 'Todos los días'
-                    : days.map((day) => _weekdayNames[day - 1]).join(' · ');
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 11),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 15, 16, 11),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer,
-                              borderRadius: BorderRadius.circular(14)),
-                            child: Text(_friendlyTime(hour, minute),
-                              style: TextStyle(color: Theme.of(context).colorScheme.onSurface,
-                                fontSize: 18, fontWeight: FontWeight.w800)),
+    body:
+        busy
+            ? Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+              onRefresh: load,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 36),
+                children: [
+                  if (widget.focusCareId != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        _careName(
+                          careTypes.firstWhere(
+                            (row) => row['id'] == widget.focusCareId,
+                            orElse: () => <String, dynamic>{'label': 'Cuidado'},
                           ),
-                          SizedBox(width: 12),
-                          Expanded(child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(catalogCareById(careTypes,
-                                  (row['careId'] ?? '').toString()) == null
-                                    ? (row['careLabel'] ?? 'Cuidado').toString()
-                                    : careTypeLabel(catalogCareById(careTypes,
-                                        (row['careId'] ?? '').toString())!),
-                                style: TextStyle(fontSize: 16,
-                                    fontWeight: FontWeight.w800)),
-                              SizedBox(height: 4),
-                              Text(daysLabel, style: TextStyle(
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                            ],
-                          )),
-                        ]),
-                        if ((row['note'] ?? '').toString().trim().isNotEmpty) ...[
-                          SizedBox(height: 10),
-                          Text(row['note'].toString(),
-                            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                        ],
-                        Divider(height: 22),
-                        Row(children: [
-                          Expanded(child: OutlinedButton.icon(
-                            onPressed: () => edit(row),
-                            icon: Icon(Icons.edit_outlined, size: 18),
-                            label: Text('Editar'),
-                          )),
-                          SizedBox(width: 8),
-                          Expanded(child: TextButton.icon(
-                            style: TextButton.styleFrom(
-                              foregroundColor: Theme.of(context).colorScheme.error),
-                            onPressed: () => delete(row),
-                            icon: Icon(Icons.delete_outline, size: 18),
-                            label: Text('Eliminar'),
-                          )),
-                        ]),
-                      ],
+                        ),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${reminders.length} ${reminders.length == 1 ? 'horario' : 'horarios'}',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                      if (widget.focusCareId == null)
+                        TextButton.icon(
+                          onPressed: () async {
+                            await Navigator.push<void>(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (_) => PetCareVisibilityPage(
+                                      petId: widget.petId,
+                                      petName: widget.petName,
+                                      species: widget.species,
+                                    ),
+                              ),
+                            );
+                            if (mounted) {
+                              widget.onScheduleChanged?.call();
+                              await load();
+                            }
+                          },
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: const Text('Nuevo cuidado'),
+                        ),
+                    ],
                   ),
-                );
-              }),
-            ],
+                  const SizedBox(height: 10),
+                  if (caresWithoutReminder(
+                    careTypes,
+                    reminders,
+                  ).isNotEmpty) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () => edit(),
+                        icon: const Icon(Icons.add_alarm_rounded),
+                        label: const Text('Nuevo horario'),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+                  if (reminders.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Text(
+                        'Sin avisos programados.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ...reminders.map((row) {
+                    final hour = (row['hour'] as num?)?.toInt() ?? 0;
+                    final minute = (row['minute'] as num?)?.toInt() ?? 0;
+                    final days =
+                        (row['days'] as List?)
+                            ?.whereType<num>()
+                            .map((value) => value.toInt())
+                            .where((value) => value >= 1 && value <= 7)
+                            .toList() ??
+                        <int>[];
+                    final daysLabel =
+                        days.isEmpty
+                            ? 'Todos los días'
+                            : days
+                                .map((day) => _weekdayNames[day - 1])
+                                .join(' · ');
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 11),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 15, 16, 11),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        Theme.of(
+                                          context,
+                                        ).colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Text(
+                                    _friendlyTime(hour, minute),
+                                    style: TextStyle(
+                                      color:
+                                          Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        catalogCareById(
+                                                  careTypes,
+                                                  (row['careId'] ?? '')
+                                                      .toString(),
+                                                ) ==
+                                                null
+                                            ? (row['careLabel'] ?? 'Cuidado')
+                                                .toString()
+                                            : careTypeLabel(
+                                              catalogCareById(
+                                                careTypes,
+                                                (row['careId'] ?? '')
+                                                    .toString(),
+                                              )!,
+                                            ),
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        daysLabel,
+                                        style: TextStyle(
+                                          color:
+                                              Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if ((row['note'] ?? '')
+                                .toString()
+                                .trim()
+                                .isNotEmpty) ...[
+                              SizedBox(height: 10),
+                              Text(
+                                row['note'].toString(),
+                                style: TextStyle(
+                                  color:
+                                      Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                            Divider(height: 22),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => edit(row),
+                                    icon: Icon(Icons.edit_outlined, size: 18),
+                                    label: Text('Editar'),
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: TextButton.icon(
+                                    style: TextButton.styleFrom(
+                                      foregroundColor:
+                                          Theme.of(context).colorScheme.error,
+                                    ),
+                                    onPressed: () => delete(row),
+                                    icon: Icon(Icons.delete_outline, size: 18),
+                                    label: Text('Eliminar'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+  );
+}
+
+DateTime? petCareNextOccurrencePreview({
+  required DateTime now,
+  required int hour,
+  required int minute,
+  required Iterable<int> days,
+}) {
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  final validDays = days.where((day) => day >= 1 && day <= 7).toSet();
+  if (validDays.isEmpty) return null;
+  for (var offset = 0; offset <= 7; offset++) {
+    final candidate = DateTime(
+      now.year,
+      now.month,
+      now.day + offset,
+      hour,
+      minute,
+    );
+    if (candidate.isAfter(now) && validDays.contains(candidate.weekday)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+class PetCareNextOccurrenceHint extends StatelessWidget {
+  final TimeOfDay time;
+  final Set<int> selectedDays;
+
+  const PetCareNextOccurrenceHint({
+    super.key,
+    required this.time,
+    required this.selectedDays,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final next = petCareNextOccurrencePreview(
+      now: now,
+      hour: time.hour,
+      minute: time.minute,
+      days: selectedDays,
+    );
+    final colors = Theme.of(context).colorScheme;
+    String message;
+    if (next == null) {
+      message = 'Elige los d\u00EDas para ver el pr\u00F3ximo aviso.';
+    } else {
+      final today = DateTime.utc(now.year, now.month, now.day);
+      final upcoming = DateTime.utc(next.year, next.month, next.day);
+      final dayDifference = upcoming.difference(today).inDays;
+      final at = _friendlyTime(next.hour, next.minute);
+      if (dayDifference == 0) {
+        message = 'Pr\u00F3ximo aviso: hoy a las $at';
+      } else if (dayDifference == 1) {
+        message = 'Pr\u00F3ximo aviso: ma\u00F1ana a las $at';
+      } else {
+        final weekday = _weekdayNames[next.weekday - 1];
+        message = 'Pr\u00F3ximo aviso: $weekday ${_dateLabel(next)} a las $at';
+      }
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: colors.outlineVariant),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.event_available_outlined, color: colors.primary),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: colors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'La fecha se recalcula al guardar; Android puede demorar el aviso.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
+      ),
+    );
+  }
+}
+
+TimeOfDay petCareTimeWithPeriod(TimeOfDay original, int period) {
+  final hour12 = original.hour % 12;
+  return TimeOfDay(
+    hour: hour12 + (period == 1 ? 12 : 0),
+    minute: original.minute,
   );
 }
 
@@ -954,8 +1646,12 @@ class ReminderEditorPage extends StatefulWidget {
   final Map<String, dynamic>? existing;
   final String? initialCareId;
   const ReminderEditorPage({
-    super.key, required this.petId, required this.petName,
-    required this.careTypes, this.existing, this.initialCareId,
+    super.key,
+    required this.petId,
+    required this.petName,
+    required this.careTypes,
+    this.existing,
+    this.initialCareId,
   });
   @override
   State<ReminderEditorPage> createState() => _ReminderEditorPageState();
@@ -966,6 +1662,7 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
   TimeOfDay time = const TimeOfDay(hour: 17, minute: 0);
   final weekdays = <int>{};
   final note = TextEditingController();
+  String selectedSoundId = 'default';
   bool saving = false;
 
   @override
@@ -983,15 +1680,20 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
     if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
       time = TimeOfDay(hour: hour, minute: minute);
     }
-    final savedDays = (old?['days'] as List?)
-        ?.whereType<num>().map((e) => e.toInt())
-        .where((day) => day >= 1 && day <= 7).toSet() ?? <int>{};
+    final savedDays =
+        (old?['days'] as List?)
+            ?.whereType<num>()
+            .map((e) => e.toInt())
+            .where((day) => day >= 1 && day <= 7)
+            .toSet() ??
+        <int>{};
     if (old != null && savedDays.isEmpty) {
       weekdays.addAll(List<int>.generate(7, (index) => index + 1));
     } else {
       weekdays.addAll(savedDays);
     }
     note.text = (old?['note'] ?? '').toString();
+    selectedSoundId = normalizeReminderSound(old?['soundId']);
   }
 
   @override
@@ -1003,9 +1705,11 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
   Future<void> save() async {
     if (careId == null || saving) return;
     if (weekdays.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Selecciona al menos un día o pulsa Todos los días.'),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Selecciona al menos un día o pulsa Todos los días.'),
+        ),
+      );
       return;
     }
     setState(() => saving = true);
@@ -1015,9 +1719,13 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
       if (!permitted) {
         if (mounted) {
           setState(() => saving = false);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Activa las notificaciones para guardar un horario con aviso.'),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Activa las notificaciones para guardar un horario con aviso.',
+              ),
+            ),
+          );
         }
         return;
       }
@@ -1028,20 +1736,23 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
         'minute': time.minute,
         'days': weekdays.toList()..sort(),
         'note': note.text.trim(),
+        'soundId': selectedSoundId,
         'enabled': true,
         'updatedAt': FieldValue.serverTimestamp(),
       };
       final remindersRef = _reminderDocs(widget.petId);
-      final sameCare = await remindersRef
-          .where('careId', isEqualTo: careId).get();
+      final sameCare =
+          await remindersRef.where('careId', isEqualTo: careId).get();
       final currentId = widget.existing?['id']?.toString();
       final conflict = sameCare.docs.any((doc) => doc.id != currentId);
       if (widget.existing == null && sameCare.docs.isNotEmpty ||
           widget.existing != null && conflict) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Este cuidado ya tiene horario. Edítalo.'),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Este cuidado ya tiene horario. Edítalo.'),
+            ),
+          );
           setState(() => saving = false);
         }
         return;
@@ -1052,14 +1763,17 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
         if (previous.exists) {
           if (mounted) {
             setState(() => saving = false);
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('El horario ya existe. Actualiza la lista.'),
-            ));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('El horario ya existe. Actualiza la lista.'),
+              ),
+            );
           }
           return;
         }
         await canonical.set({
-          ...data, 'createdAt': FieldValue.serverTimestamp(),
+          ...data,
+          'createdAt': FieldValue.serverTimestamp(),
         });
       } else {
         await remindersRef.doc(currentId).set(data, SetOptions(merge: true));
@@ -1069,10 +1783,14 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
     } catch (e) {
       if (mounted) {
         setState(() => saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('El horario puede haberse guardado, pero no se '
-              'confirmó su notificación. Reintenta desde Horarios. $e'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'El horario puede haberse guardado, pero no se '
+              'confirmó su notificación. Reintenta desde Horarios. $e',
+            ),
+          ),
+        );
       }
     }
   }
@@ -1091,40 +1809,62 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
           top: false,
           child: SizedBox(
             height: neededHeight < maxHeight ? neededHeight : maxHeight,
-            child: Column(children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 4, 22, 14),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Selecciona el cuidado',
-                    style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800,
-                      color: colors.onSurface)),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 4, 22, 14),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Selecciona el cuidado',
+                      style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              Expanded(child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                itemCount: widget.careTypes.length,
-                itemBuilder: (context, index) {
-                  final care = widget.careTypes[index];
-                  final id = care['id'].toString();
-                  final selected = id == careId;
-                  return ListTile(
-                    minTileHeight: 52,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                    tileColor: selected ? colors.primaryContainer : null,
-                    leading: Icon(Icons.pets_outlined,
-                      color: selected ? colors.primary : colors.onSurfaceVariant),
-                    title: Text(_careName(care), maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                    trailing: selected
-                      ? Icon(Icons.check_circle_rounded, color: colors.primary)
-                      : null,
-                    onTap: () => Navigator.pop(sheetContext, id),
-                  );
-                },
-              )),
-            ]),
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                    itemCount: widget.careTypes.length,
+                    itemBuilder: (context, index) {
+                      final care = widget.careTypes[index];
+                      final id = care['id'].toString();
+                      final selected = id == careId;
+                      return ListTile(
+                        minTileHeight: 52,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        tileColor: selected ? colors.primaryContainer : null,
+                        leading: Icon(
+                          Icons.pets_outlined,
+                          color:
+                              selected
+                                  ? colors.primary
+                                  : colors.onSurfaceVariant,
+                        ),
+                        title: Text(
+                          _careName(care),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing:
+                            selected
+                                ? Icon(
+                                  Icons.check_circle_rounded,
+                                  color: colors.primary,
+                                )
+                                : null,
+                        onTap: () => Navigator.pop(sheetContext, id),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -1136,19 +1876,28 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.existing == null
-        ? 'Crear horario' : 'Editar horario')),
+    appBar: AppBar(
+      title: Text(widget.existing == null ? 'Crear horario' : 'Editar horario'),
+    ),
     body: ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: const EdgeInsets.fromLTRB(18, 12, 18, 30),
       children: [
-        Text('Cuidado', style: TextStyle(
-            fontSize: 17, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
+        Text(
+          'Cuidado',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
         SizedBox(height: 9),
         Material(
           color: Theme.of(context).colorScheme.surfaceContainerHigh,
           shape: RoundedRectangleBorder(
-            side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+            side: BorderSide(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
             borderRadius: BorderRadius.circular(17),
           ),
           child: InkWell(
@@ -1156,101 +1905,272 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
             onTap: widget.careTypes.length <= 1 ? null : selectCare,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 17),
-              child: Row(children: [
-                Icon(Icons.check_circle_outline,
-                  color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 14),
-                Expanded(child: Text(
-                  widget.careTypes.isEmpty ? 'Sin cuidados disponibles'
-                    : _careName(widget.careTypes.firstWhere(
-                      (row) => row['id'].toString() == careId,
-                      orElse: () => widget.careTypes.first,
-                    )),
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                )),
-                if (widget.careTypes.length > 1)
-                  Icon(Icons.keyboard_arrow_down_rounded,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant),
-              ]),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.check_circle_outline,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      widget.careTypes.isEmpty
+                          ? 'Sin cuidados disponibles'
+                          : _careName(
+                            widget.careTypes.firstWhere(
+                              (row) => row['id'].toString() == careId,
+                              orElse: () => widget.careTypes.first,
+                            ),
+                          ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  if (widget.careTypes.length > 1)
+                    Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                ],
+              ),
             ),
           ),
         ),
         SizedBox(height: 18),
-        Text('Hora', style: TextStyle(
-            fontSize: 17, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
+        Text(
+          'Hora',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
         SizedBox(height: 9),
-        Card(child: InkWell(
-          borderRadius: BorderRadius.circular(22),
-          onTap: () async {
-            final selected = await showTimePicker(
-              context: context, initialTime: time,
-            );
-            if (selected != null && mounted) setState(() => time = selected);
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Row(children: [
-              CircleAvatar(backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                child: Icon(Icons.schedule, color: Theme.of(context).colorScheme.primary)),
-              SizedBox(width: 13),
-              Expanded(child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+            side: BorderSide(
+              color: Theme.of(context).colorScheme.primary,
+              width: 1.5,
+            ),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: () async {
+              final selected = await showTimePicker(
+                context: context,
+                initialTime: time,
+                helpText: 'Hora del aviso (formato 24 h)',
+                initialEntryMode: TimePickerEntryMode.dialOnly,
+                hourLabelText: 'Hora',
+                minuteLabelText: 'Minuto',
+                confirmText: 'Aceptar',
+                cancelText: 'Cancelar',
+                builder:
+                    (pickerContext, child) => MediaQuery(
+                      data: MediaQuery.of(
+                        pickerContext,
+                      ).copyWith(alwaysUse24HourFormat: true),
+                      child: child!,
+                    ),
+              );
+              if (selected != null && mounted) setState(() => time = selected);
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Row(
                 children: [
-                  Text('Hora del aviso',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                  SizedBox(height: 3),
-                  Text(_friendlyTime(time.hour, time.minute),
-                    style: TextStyle(fontSize: 25,
-                        fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
+                  CircleAvatar(
+                    backgroundColor:
+                        Theme.of(context).colorScheme.primaryContainer,
+                    child: Icon(
+                      Icons.schedule,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  SizedBox(width: 13),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Hora del aviso',
+                          style: TextStyle(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          _friendlyTime(time.hour, time.minute),
+                          style: TextStyle(
+                            fontSize: 25,
+                            fontWeight: FontWeight.w800,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.edit_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ],
-              )),
-              Icon(Icons.edit_outlined, color: Theme.of(context).colorScheme.primary),
-            ]),
+              ),
+            ),
           ),
-        )),
+        ),
+        const SizedBox(height: 9),
+        Row(
+          children: [
+            Text(
+              'Periodo',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const Spacer(),
+            SegmentedButton<int>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: 0, label: Text('AM')),
+                ButtonSegment(value: 1, label: Text('PM')),
+              ],
+              selected: {time.hour < 12 ? 0 : 1},
+              onSelectionChanged:
+                  saving
+                      ? null
+                      : (selected) {
+                        if (selected.isEmpty) return;
+                        setState(
+                          () =>
+                              time = petCareTimeWithPeriod(
+                                time,
+                                selected.first,
+                              ),
+                        );
+                      },
+            ),
+          ],
+        ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(2, 2, 2, 10),
+          child: Text(
+            'En el reloj: 17:00 = 5:00 PM. Confirma AM o PM antes de guardar.',
+          ),
+        ),
         SizedBox(height: 18),
-        Text('Repetir', style: TextStyle(
-            fontSize: 17, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
-        SizedBox(height: 5),
-        Row(children: [
-          Expanded(child: Text(
-            weekdays.isEmpty ? 'Sin días seleccionados'
-              : weekdays.length == 7 ? 'Todos los días'
-              : '${weekdays.length} días seleccionados',
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-          )),
-          ActionChip(
-            avatar: const Icon(Icons.done_all_rounded, size: 18),
-            label: const Text('Todos los días'),
-            tooltip: weekdays.length == 7
-                ? 'Deseleccionar todos los días' : 'Seleccionar los siete días',
-            onPressed: () => setState(() {
-              if (weekdays.length == 7) {
-                weekdays.clear();
-              } else {
-                weekdays.addAll(List<int>.generate(7, (i) => i + 1));
-              }
-            }),
+        Text(
+          'Repetir',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
-        ]),
+        ),
+        SizedBox(height: 5),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                weekdays.isEmpty
+                    ? 'Sin días seleccionados'
+                    : weekdays.length == 7
+                    ? 'Todos los días'
+                    : '${weekdays.length} días seleccionados',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            ActionChip(
+              avatar: const Icon(Icons.done_all_rounded, size: 18),
+              label: const Text('Todos los días'),
+              tooltip:
+                  weekdays.length == 7
+                      ? 'Deseleccionar todos los días'
+                      : 'Seleccionar los siete días',
+              onPressed:
+                  () => setState(() {
+                    if (weekdays.length == 7) {
+                      weekdays.clear();
+                    } else {
+                      weekdays.addAll(List<int>.generate(7, (i) => i + 1));
+                    }
+                  }),
+            ),
+          ],
+        ),
         SizedBox(height: 10),
-        Wrap(spacing: 6, runSpacing: 5,
+        Wrap(
+          spacing: 6,
+          runSpacing: 5,
           children: List.generate(7, (index) {
             final day = index + 1;
             return FilterChip(
               label: Text(_weekdayNames[index]),
               selected: weekdays.contains(day),
-              onSelected: (selected) => setState(() {
-                if (selected) { weekdays.add(day); }
-                else { weekdays.remove(day); }
-              }),
+              onSelected:
+                  (selected) => setState(() {
+                    if (selected) {
+                      weekdays.add(day);
+                    } else {
+                      weekdays.remove(day);
+                    }
+                  }),
             );
           }),
         ),
+        const SizedBox(height: 12),
+        PetCareNextOccurrenceHint(time: time, selectedDays: weekdays),
         SizedBox(height: 18),
-        Text('Nota (opcional)', style: TextStyle(
-            fontSize: 17, fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
+        Text(
+          'Sonido del aviso',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+        const SizedBox(height: 9),
+        DropdownButtonFormField<String>(
+          initialValue: selectedSoundId,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            prefixIcon: Icon(Icons.notifications_active_outlined),
+            helperText: 'Cada horario puede tener un sonido diferente.',
+          ),
+          items:
+              petCareReminderSoundNames.entries
+                  .map(
+                    (entry) => DropdownMenuItem<String>(
+                      value: entry.key,
+                      child: Text(entry.value),
+                    ),
+                  )
+                  .toList(),
+          onChanged:
+              saving
+                  ? null
+                  : (value) {
+                    if (value != null) setState(() => selectedSoundId = value);
+                  },
+        ),
+        const SizedBox(height: 18),
+        Text(
+          'Nota (opcional)',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
         SizedBox(height: 9),
         TextField(
           controller: note,
@@ -1281,9 +2201,7 @@ class _ReminderEditorPageState extends State<ReminderEditorPage> {
 class PetHistoryPage extends StatefulWidget {
   final String petId;
   final String petName;
-  const PetHistoryPage({
-    super.key, required this.petId, required this.petName,
-  });
+  const PetHistoryPage({super.key, required this.petId, required this.petName});
   @override
   State<PetHistoryPage> createState() => _PetHistoryPageState();
 }
@@ -1291,6 +2209,7 @@ class PetHistoryPage extends StatefulWidget {
 class _PetHistoryPageState extends State<PetHistoryPage> {
   List<Map<String, dynamic>> entries = [];
   bool busy = true;
+  bool _exportingPdf = false;
   int selectedPeriod = 0;
   DateTime anchor = DateTime.now();
   Map<String, String> namesByType = {};
@@ -1309,10 +2228,18 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
     'vet': Color(0xFF697DD1),
   };
   static const _extraColors = <Color>[
-    Color(0xFF4A8B60), Color(0xFF9C6C37), Color(0xFF9866B4),
-    Color(0xFF1D93AD), Color(0xFFCF6D5B), Color(0xFF6B7E36),
-    Color(0xFFB85999), Color(0xFF4384AE), Color(0xFF947348),
-    Color(0xFF508B83), Color(0xFFB86B40), Color(0xFF7B69A5),
+    Color(0xFF4A8B60),
+    Color(0xFF9C6C37),
+    Color(0xFF9866B4),
+    Color(0xFF1D93AD),
+    Color(0xFFCF6D5B),
+    Color(0xFF6B7E36),
+    Color(0xFFB85999),
+    Color(0xFF4384AE),
+    Color(0xFF947348),
+    Color(0xFF508B83),
+    Color(0xFFB86B40),
+    Color(0xFF7B69A5),
   ];
 
   String _typeKey(Map<String, dynamic> entry) {
@@ -1326,8 +2253,10 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
     if (type == 'habitat') return 'Limpieza del hábitat';
     final saved = (entry['label'] ?? '').toString().trim();
     var name = saved.isNotEmpty ? saved : (namesByType[type] ?? type);
-    name = name.replaceAll(RegExp(r'\bhábitat\s+hábitat\b',
-        caseSensitive: false), 'hábitat');
+    name = name.replaceAll(
+      RegExp(r'\bhábitat\s+hábitat\b', caseSensitive: false),
+      'hábitat',
+    );
     if (name.toLowerCase() == 'habitat' || name.toLowerCase() == 'hábitat') {
       return 'Limpieza del hábitat';
     }
@@ -1339,8 +2268,13 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
   }
 
   Map<String, Color> _buildCareColors() {
-    final custom = entries.map(_typeKey).toSet().where(
-        (key) => !_baseColors.containsKey(key)).toList()..sort();
+    final custom =
+        entries
+            .map(_typeKey)
+            .toSet()
+            .where((key) => !_baseColors.containsKey(key))
+            .toList()
+          ..sort();
     return {
       ..._baseColors,
       for (var i = 0; i < custom.length; i++)
@@ -1367,44 +2301,52 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
   }
 
   String _times(int count) => count == 1 ? '1 vez' : '$count veces';
-  String _careCount(int count) =>
-      count == 1 ? '1 cuidado' : '$count cuidados';
+  String _careCount(int count) => count == 1 ? '1 cuidado' : '$count cuidados';
 
   Widget _dot(Color color, {double size = 7}) => Container(
-    width: size, height: size,
+    width: size,
+    height: size,
     decoration: BoxDecoration(color: color, shape: BoxShape.circle),
   );
 
-  Widget _typeDots(List<Map<String, dynamic>> rows,
-      {int maxDots = 5, double diameter = 6.5}) {
+  Widget _typeDots(
+    List<Map<String, dynamic>> rows, {
+    int maxDots = 5,
+    double diameter = 6.5,
+  }) {
     final types = _countsByType(rows).keys.toList()..sort();
     final visibleTypes = types.take(maxDots).toList();
     return FittedBox(
       fit: BoxFit.scaleDown,
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: visibleTypes.map((key) => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 1.4),
-          child: Container(
-            width: diameter,
-            height: diameter,
-            decoration: BoxDecoration(
-              color: _colorFor(key),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.9),
-                width: 0.8,
-              ),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x22000000),
-                  blurRadius: 1.5,
-                  offset: Offset(0, 0.5),
-                ),
-              ],
-            ),
-          ),
-        )).toList(),
+        children:
+            visibleTypes
+                .map(
+                  (key) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 1.4),
+                    child: Container(
+                      width: diameter,
+                      height: diameter,
+                      decoration: BoxDecoration(
+                        color: _colorFor(key),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          width: 0.8,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x22000000),
+                            blurRadius: 1.5,
+                            offset: Offset(0, 0.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
       ),
     );
   }
@@ -1413,72 +2355,119 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
     final color = _colorFor(key);
     return Container(
       constraints: BoxConstraints(
-        maxWidth: MediaQuery.sizeOf(context).width - 85),
+        maxWidth: MediaQuery.sizeOf(context).width - 85,
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.09),
         border: Border.all(color: color.withValues(alpha: 0.23)),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        _dot(color, size: 8), SizedBox(width: 7),
-        Flexible(child: Text('${_nameForType(key)} · ${_times(count)}',
-          maxLines: 2, overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
-      ]),
-    );
-  }
-
-  void _openDayDetails(DateTime day, List<Map<String, dynamic>> rows) {
-    final grouped = _countsByType(rows).entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    showModalBottomSheet<void>(
-      context: context, isScrollControlled: true, showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 2, 20, 22),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.75),
-            child: ListView(shrinkWrap: true, children: [
-              Text('${day.day} de ${_months[day.month - 1]} de ${day.year}',
-                style: TextStyle(fontSize: 22,
-                  fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
-              SizedBox(height: 5),
-              Text('${_careCount(rows.length)} registrados ese día',
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-              SizedBox(height: 17),
-              if (rows.isEmpty)
-                Text('No hay cuidados registrados en esta fecha.'),
-              ...grouped.map((group) => Padding(
-                padding: const EdgeInsets.only(bottom: 9),
-                child: Row(children: [
-                  _dot(_colorFor(group.key), size: 11),
-                  SizedBox(width: 10),
-                  Expanded(child: Text(_nameForType(group.key),
-                    style: TextStyle(fontWeight: FontWeight.w600))),
-                  Text(_times(group.value),
-                    style: TextStyle(fontWeight: FontWeight.w800)),
-                ]))),
-              if (rows.isNotEmpty) ...[
-                Divider(height: 27),
-                Text('Registros del día', style: TextStyle(
-                  fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
-                ...rows.map((row) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: _dot(_colorFor(_typeKey(row)), size: 10),
-                  title: Text(_typeName(row)),
-                  subtitle: Text((row['time'] ?? '').toString().trim().isEmpty
-                    ? 'Sin hora registrada' : row['time'].toString()),
-                )),
-              ],
-            ]),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _dot(color, size: 8),
+          SizedBox(width: 7),
+          Flexible(
+            child: Text(
+              '${_nameForType(key)} · ${_times(count)}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
+  void _openDayDetails(DateTime day, List<Map<String, dynamic>> rows) {
+    final grouped =
+        _countsByType(rows).entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder:
+          (sheetContext) => SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 2, 20, 22),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.75,
+                ),
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    Text(
+                      '${day.day} de ${_months[day.month - 1]} de ${day.year}',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    SizedBox(height: 5),
+                    Text(
+                      '${_careCount(rows.length)} registrados ese día',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    SizedBox(height: 17),
+                    if (rows.isEmpty)
+                      Text('No hay cuidados registrados en esta fecha.'),
+                    ...grouped.map(
+                      (group) => Padding(
+                        padding: const EdgeInsets.only(bottom: 9),
+                        child: Row(
+                          children: [
+                            _dot(_colorFor(group.key), size: 11),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _nameForType(group.key),
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            Text(
+                              _times(group.value),
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (rows.isNotEmpty) ...[
+                      Divider(height: 27),
+                      Text(
+                        'Registros del día',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      ...rows.map(
+                        (row) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: _dot(_colorFor(_typeKey(row)), size: 10),
+                          title: Text(_typeName(row)),
+                          subtitle: Text(
+                            (row['time'] ?? '').toString().trim().isEmpty
+                                ? 'Sin hora registrada'
+                                : row['time'].toString(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+    );
+  }
 
   @override
   void initState() {
@@ -1488,25 +2477,33 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
 
   Future<void> load() async {
     try {
-      final data = await _petDoc(widget.petId).collection('care')
-          .orderBy('createdAt', descending: true).get();
-      final catalog = await FirebaseFirestore.instance
-          .collection('careCatalog').get();
+      final data =
+          await _petDoc(
+            widget.petId,
+          ).collection('care').orderBy('createdAt', descending: true).get();
+      final catalog =
+          await FirebaseFirestore.instance.collection('careCatalog').get();
       if (mounted) {
         setState(() {
           entries = data.docs.map((d) => {'id': d.id, ...d.data()}).toList();
           _cachedCareColors = null;
-          namesByType = {for (final doc in catalog.docs)
-            doc.id: (doc.data()['label'] ?? doc.id).toString()};
+          namesByType = {
+            for (final doc in catalog.docs)
+              doc.id: (doc.data()['label'] ?? doc.id).toString(),
+          };
           busy = false;
         });
       }
     } catch (_) {
       if (mounted) {
         setState(() => busy = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('No se pudo cargar el historial. Comprueba Internet.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'No se pudo cargar el historial. Comprueba Internet.',
+            ),
+          ),
+        );
       }
     }
   }
@@ -1539,7 +2536,9 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
       return '${_dateLabel(periodStart)} – '
           '${_dateLabel(periodEnd.subtract(const Duration(days: 1)))}';
     }
-    if (selectedPeriod == 1) return '${_months[anchor.month - 1]} de ${anchor.year}';
+    if (selectedPeriod == 1) {
+      return '${_months[anchor.month - 1]} de ${anchor.year}';
+    }
     if (selectedPeriod == 2) return '${anchor.year}';
     return 'Todos los años';
   }
@@ -1569,387 +2568,737 @@ class _PetHistoryPageState extends State<PetHistoryPage> {
     }
     final today = DateTime.now();
     final selected = selectedCalendarDate;
-    final selectedDay = selected != null && selected.year == anchor.year &&
-            selected.month == anchor.month
-        ? selected.day
-        : today.year == anchor.year && today.month == anchor.month &&
+    final selectedDay =
+        selected != null &&
+                selected.year == anchor.year &&
+                selected.month == anchor.month
+            ? selected.day
+            : today.year == anchor.year &&
+                today.month == anchor.month &&
                 rowsByDay.containsKey(today.day)
             ? today.day
             : rowsByDay.keys.isEmpty
-                ? today.year == anchor.year && today.month == anchor.month
-                    ? today.day : 1
-                : rowsByDay.keys.reduce((a, b) => a > b ? a : b);
+            ? today.year == anchor.year && today.month == anchor.month
+                ? today.day
+                : 1
+            : rowsByDay.keys.reduce((a, b) => a > b ? a : b);
     final dayRecords = rowsByDay[selectedDay] ?? <Map<String, dynamic>>[];
-    final selectedCounts = _countsByType(dayRecords).entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final selectedCounts =
+        _countsByType(dayRecords).entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
     final calendarDate = DateTime(anchor.year, anchor.month, selectedDay);
 
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 16, 12, 15),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Icons.calendar_month_outlined, color: Theme.of(context).colorScheme.primary, size: 23),
-            SizedBox(width: 8),
-            Expanded(child: Text('Calendario de cuidados', style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.w800))),
-          ]),
-          SizedBox(height: 6),
-          Text('Selecciona una fecha para ver sus cuidados. '
-              'Los puntos indican diferentes tipos de actividad.',
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, height: 1.35)),
-          SizedBox(height: 14),
-          Row(children: _weekdayNames.map((day) => Expanded(
-            child: Center(child: Text(day, style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11,
-              fontWeight: FontWeight.w700))),
-          )).toList()),
-          SizedBox(height: 7),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: offset + daysInMonth,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              childAspectRatio: 0.69,
-              mainAxisSpacing: 4,
-              crossAxisSpacing: 3,
-            ),
-            itemBuilder: (ctx, index) {
-              if (index < offset) return const SizedBox.shrink();
-              final day = index - offset + 1;
-              final records = rowsByDay[day] ?? <Map<String, dynamic>>[];
-              final isToday = today.year == anchor.year &&
-                  today.month == anchor.month && today.day == day;
-              final active = selectedDay == day;
-              return Semantics(
-                button: true,
-                label: '$day de ${_months[anchor.month - 1]}. '
-                    '${_careCount(records.length)}. Seleccionar para ver tipos.',
-                child: InkWell(
-                  onTap: () => setState(() => selectedCalendarDate =
-                      DateTime(anchor.year, anchor.month, day)),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: active ? Theme.of(context).colorScheme.primary
-                          : (records.isEmpty
-                            ? Theme.of(context).colorScheme.surfaceContainerLow
-                            : Theme.of(context).colorScheme.primaryContainer),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: active ? _green : (isToday
-                          ? const Color(0xFF9ABDAA) : Colors.transparent),
-                        width: active ? 1.5 : 1,
-                      ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.calendar_month_outlined,
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 23,
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Calendario de cuidados',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
                     ),
-                    child: Column(mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text('$day', style: TextStyle(fontSize: 13,
-                          fontWeight: active || isToday
-                              ? FontWeight.w800 : FontWeight.w500,
-                          color: active
-                              ? Theme.of(context).colorScheme.onPrimary
-                              : records.isNotEmpty
-                                  ? Theme.of(context).colorScheme.onPrimaryContainer
-                                  : Theme.of(context).colorScheme.onSurface)),
-                        SizedBox(height: 4),
-                        SizedBox(height: 7,
-                          child: records.isEmpty
-                              ? const SizedBox.shrink()
-                              : _typeDots(records, maxDots: 5, diameter: 6.5)),
-                        SizedBox(height: 3),
-                        Container(
-                          constraints: const BoxConstraints(minWidth: 18),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: records.isEmpty
-                                ? Colors.transparent
-                                : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            records.isEmpty ? '' : '${records.length}',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              color: active
-                                  ? Theme.of(context).colorScheme.onPrimary
-                                  : records.isNotEmpty
-                                      ? Theme.of(context).colorScheme.onPrimaryContainer
-                                      : Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 6),
+            Text(
+              'Selecciona una fecha para ver sus cuidados. '
+              'Los puntos indican diferentes tipos de actividad.',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 12,
+                height: 1.35,
+              ),
+            ),
+            SizedBox(height: 14),
+            Row(
+              children:
+                  _weekdayNames
+                      .map(
+                        (day) => Expanded(
+                          child: Center(
+                            child: Text(
+                              day,
+                              style: TextStyle(
+                                color:
+                                    Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ),
-                      ],
+                      )
+                      .toList(),
+            ),
+            SizedBox(height: 7),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: offset + daysInMonth,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+                childAspectRatio: 0.69,
+                mainAxisSpacing: 4,
+                crossAxisSpacing: 3,
+              ),
+              itemBuilder: (ctx, index) {
+                if (index < offset) return const SizedBox.shrink();
+                final day = index - offset + 1;
+                final records = rowsByDay[day] ?? <Map<String, dynamic>>[];
+                final isToday =
+                    today.year == anchor.year &&
+                    today.month == anchor.month &&
+                    today.day == day;
+                final active = selectedDay == day;
+                return Semantics(
+                  button: true,
+                  label:
+                      '$day de ${_months[anchor.month - 1]}. '
+                      '${_careCount(records.length)}. Seleccionar para ver tipos.',
+                  child: InkWell(
+                    onTap:
+                        () => setState(
+                          () =>
+                              selectedCalendarDate = DateTime(
+                                anchor.year,
+                                anchor.month,
+                                day,
+                              ),
+                        ),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color:
+                            active
+                                ? Theme.of(context).colorScheme.primary
+                                : (records.isEmpty
+                                    ? Theme.of(
+                                      context,
+                                    ).colorScheme.surfaceContainerLow
+                                    : Theme.of(
+                                      context,
+                                    ).colorScheme.primaryContainer),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color:
+                              active
+                                  ? _green
+                                  : (isToday
+                                      ? const Color(0xFF9ABDAA)
+                                      : Colors.transparent),
+                          width: active ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '$day',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight:
+                                  active || isToday
+                                      ? FontWeight.w800
+                                      : FontWeight.w500,
+                              color:
+                                  active
+                                      ? Theme.of(context).colorScheme.onPrimary
+                                      : records.isNotEmpty
+                                      ? Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimaryContainer
+                                      : Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          SizedBox(
+                            height: 7,
+                            child:
+                                records.isEmpty
+                                    ? const SizedBox.shrink()
+                                    : _typeDots(
+                                      records,
+                                      maxDots: 5,
+                                      diameter: 6.5,
+                                    ),
+                          ),
+                          SizedBox(height: 3),
+                          Container(
+                            constraints: const BoxConstraints(minWidth: 18),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color:
+                                  records.isEmpty
+                                      ? Colors.transparent
+                                      : Theme.of(context).colorScheme.onSurface
+                                          .withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              records.isEmpty ? '' : '${records.length}',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color:
+                                    active
+                                        ? Theme.of(
+                                          context,
+                                        ).colorScheme.onPrimary
+                                        : records.isNotEmpty
+                                        ? Theme.of(
+                                          context,
+                                        ).colorScheme.onPrimaryContainer
+                                        : Theme.of(
+                                          context,
+                                        ).colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
-          ),
-          SizedBox(height: 15),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(13),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(15),
+                );
+              },
             ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('$selectedDay de ${_months[anchor.month - 1]} · '
+            SizedBox(height: 15),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$selectedDay de ${_months[anchor.month - 1]} · '
                     '${_careCount(dayRecords.length)}',
-                  style: TextStyle(fontSize: 14,
-                    fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
-                SizedBox(height: 8),
-                if (dayRecords.isEmpty)
-                  Text('No registraste cuidados este día.',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
-                if (selectedCounts.isNotEmpty) Wrap(
-                  spacing: 6, runSpacing: 6,
-                  children: selectedCounts.map((group) =>
-                    _typeChip(group.key, group.value)).toList(),
-                ),
-                if (dayRecords.isNotEmpty) ...[
-                  SizedBox(height: 9),
-                  TextButton.icon(
-                    onPressed: () => _openDayDetails(calendarDate, dayRecords),
-                    icon: Icon(Icons.list_alt_outlined, size: 18),
-                    label: Text('Ver horarios y registros del día'),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
+                  SizedBox(height: 8),
+                  if (dayRecords.isEmpty)
+                    Text(
+                      'No registraste cuidados este día.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                  if (selectedCounts.isNotEmpty)
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children:
+                          selectedCounts
+                              .map((group) => _typeChip(group.key, group.value))
+                              .toList(),
+                    ),
+                  if (dayRecords.isNotEmpty) ...[
+                    SizedBox(height: 9),
+                    TextButton.icon(
+                      onPressed:
+                          () => _openDayDetails(calendarDate, dayRecords),
+                      icon: Icon(Icons.list_alt_outlined, size: 18),
+                      label: Text('Ver horarios y registros del día'),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-        ]),
+          ],
+        ),
       ),
     );
   }
 
   Future<void> deleteEntry(Map<String, dynamic> row) async {
-    final ok = await showDialog<bool>(context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Eliminar registro'),
-        content: Text('¿Eliminar este cuidado de tu historial? '
-            'Esto no modifica el horario programado.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true),
-              child: Text('Eliminar')),
-        ],
-      ),
+    final ok = await showDialog<bool>(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: Text('Eliminar registro'),
+            content: Text(
+              '¿Eliminar este cuidado de tu historial? '
+              'Esto no modifica el horario programado.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text('Eliminar'),
+              ),
+            ],
+          ),
     );
     if (ok != true) return;
-    await _petDoc(widget.petId).collection('care')
-        .doc(row['id'].toString()).delete();
+    await _petDoc(
+      widget.petId,
+    ).collection('care').doc(row['id'].toString()).delete();
     await load();
+  }
+
+  Future<void> exportHistoryPdf() async {
+    if (_exportingPdf || busy) return;
+    setState(() => _exportingPdf = true);
+    try {
+      final rows =
+          entries
+              .where((row) {
+                final when = _entryDate(row);
+                return when != null &&
+                    !when.isBefore(periodStart) &&
+                    when.isBefore(periodEnd);
+              })
+              .map(
+                (row) => PetCarePdfEntry(
+                  date: _entryDate(row)!,
+                  care: _typeName(row),
+                  time: (row['time'] ?? '').toString(),
+                  note: (row['note'] ?? '').toString(),
+                ),
+              )
+              .toList();
+      final bytes = await createPetCareHistoryPdf(
+        petName: widget.petName,
+        ownerName: FirebaseAuth.instance.currentUser?.displayName ?? '',
+        period: periodTitle,
+        entries: rows,
+      );
+      if (!mounted) return;
+      final cleanName = widget.petName.replaceAll(
+        RegExp(r'[^a-zA-Z0-9_-]'),
+        '_',
+      );
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: 'PetCare_Historial_$cleanName.pdf',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se pudo crear o compartir el PDF. Inténtalo de nuevo.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exportingPdf = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final inPeriod = entries.where((row) {
-      final date = _entryDate(row);
-      return date != null && !date.isBefore(periodStart)
-          && date.isBefore(periodEnd);
-    }).toList();
+    final inPeriod =
+        entries.where((row) {
+          final date = _entryDate(row);
+          return date != null &&
+              !date.isBefore(periodStart) &&
+              date.isBefore(periodEnd);
+        }).toList();
     final perType = _countsByType(inPeriod);
     final days = <String>{};
     for (final row in inPeriod) {
       final dt = _entryDate(row)!;
       days.add('${dt.year}-${dt.month}-${dt.day}');
     }
-    final groupedTypes = perType.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final groupedTypes =
+        perType.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     final byDay = <String, List<Map<String, dynamic>>>{};
     for (final row in inPeriod) {
       final date = _dateLabel(_entryDate(row)!);
       byDay.putIfAbsent(date, () => []).add(row);
     }
     return Scaffold(
-      appBar: AppBar(title: Text('Historial de ${widget.petName}')),
-      body: busy ? Center(child: CircularProgressIndicator())
-          : RefreshIndicator(onRefresh: load,
-            child: ListView(padding: EdgeInsets.fromLTRB(
-              18, 12, 18, MediaQuery.viewPaddingOf(context).bottom + 104),
-              children: [
-                Card(color: Theme.of(context).colorScheme.primaryContainer, margin: EdgeInsets.zero,
-                  child: Padding(padding: const EdgeInsets.all(17),
-                    child: Row(children: [
-                      CircleAvatar(radius: 22,
-                        backgroundColor: Theme.of(context).colorScheme.surface,
-                        child: Icon(Icons.insights_outlined, color: Theme.of(context).colorScheme.primary)),
-                      SizedBox(width: 12),
-                      Expanded(child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('El día a día de ${widget.petName}',
-                            style: TextStyle(fontSize: 18,
-                              fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
-                          SizedBox(height: 4),
-                          Text('Consulta cada actividad, su frecuencia '
-                            'y cuándo la registraste.',
-                            style: TextStyle(fontSize: 12,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                        ],
-                      )),
-                    ]),
+      appBar: AppBar(
+        title: Text('Historial de ${widget.petName}'),
+        actions: [
+          IconButton(
+            tooltip: 'Compartir historial en PDF',
+            icon:
+                _exportingPdf
+                    ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                    : const Icon(Icons.picture_as_pdf_outlined),
+            onPressed: busy || _exportingPdf ? null : exportHistoryPdf,
+          ),
+        ],
+      ),
+      body:
+          busy
+              ? Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                onRefresh: load,
+                child: ListView(
+                  padding: EdgeInsets.fromLTRB(
+                    18,
+                    12,
+                    18,
+                    MediaQuery.viewPaddingOf(context).bottom + 104,
                   ),
-                ),
-                SizedBox(height: 10),
-                SingleChildScrollView(scrollDirection: Axis.horizontal,
-                  child: SegmentedButton<int>(
-                    showSelectedIcon: false,
-                    segments: const [
-                      ButtonSegment(value: 0, label: Text('Semana')),
-                      ButtonSegment(value: 1, label: Text('Mes')),
-                      ButtonSegment(value: 2, label: Text('Año')),
-                      ButtonSegment(value: 3, label: Text('Todos')),
-                    ],
-                    selected: {selectedPeriod},
-                    onSelectionChanged: (choice) => setState(() {
-                      selectedPeriod = choice.first;
-                      anchor = DateTime.now();
-                    }),
-                  ),
-                ),
-                SizedBox(height: 12),
-                Row(children: [
-                  if (selectedPeriod != 3)
-                    IconButton(onPressed: () => shift(-1),
-                        icon: Icon(Icons.chevron_left),
-                        tooltip: 'Periodo anterior'),
-                  Expanded(child: Text(periodTitle, textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 16,
-                          fontWeight: FontWeight.bold))),
-                  if (selectedPeriod != 3)
-                    IconButton(onPressed: () => shift(1),
-                        icon: Icon(Icons.chevron_right),
-                        tooltip: 'Periodo siguiente'),
-                ]),
-                SizedBox(height: 12),
-                Card(color: Theme.of(context).colorScheme.primaryContainer, child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [
-                        Icon(Icons.verified_outlined, color: Theme.of(context).colorScheme.primary),
-                        SizedBox(width: 8),
-                        Expanded(child: Text(_careCount(inPeriod.length),
-                          style: TextStyle(fontSize: 20,
-                            fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface))),
-                      ]),
-                      SizedBox(height: 5),
-                      Text('En ${days.length} días diferentes.'),
-                      if (selectedPeriod == 0) ...[
-                        SizedBox(height: 13),
-                        ...List.generate(7, (index) {
-                          final day = periodStart.add(Duration(days: index));
-                          final todayEntries = inPeriod.where((row) {
-                            final stamp = _entryDate(row)!;
-                            return stamp.year == day.year &&
-                                stamp.month == day.month && stamp.day == day.day;
-                          }).toList();
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 5),
-                            child: Row(children: [
-                              SizedBox(width: 46,
-                                child: Text(_weekdayNames[index],
-                                  style: TextStyle(fontWeight: FontWeight.w700))),
-                              Expanded(child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: _typeDots(todayEntries, maxDots: 6,
-                                  diameter: 9))),
-                              Text(_careCount(todayEntries.length),
-                                style: TextStyle(fontSize: 12,
-                                  color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w700)),
-                            ]),
-                          );
-                        }),
-                      ],
-                    ],
-                  ),
-                )),
-                if (selectedPeriod == 1) ...[
-                  SizedBox(height: 12),
-                  monthCalendar(inPeriod),
-                ],
-                SizedBox(height: 17),
-                Text('Cuidados por actividad',
-                    style: TextStyle(fontSize: 18,
-                        fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
-                SizedBox(height: 4),
-                Text('Cada actividad tiene un color; el número indica '
-                    'cuántas veces quedó registrada en el periodo.',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
-                SizedBox(height: 8),
-                if (groupedTypes.isEmpty)
-                  Card(child: Padding(padding: EdgeInsets.all(20),
-                      child: Text('No hay registros en este periodo.'))),
-                ...groupedTypes.map((group) => Card(
-                  margin: const EdgeInsets.only(bottom: 7),
-                  child: ListTile(
-                    leading: CircleAvatar(radius: 17,
-                      backgroundColor: _colorFor(group.key).withValues(alpha: 0.13),
-                      child: _dot(_colorFor(group.key), size: 12)),
-                    title: Text(_nameForType(group.key),
-                      style: TextStyle(fontWeight: FontWeight.w600)),
-                    trailing: Text(_times(group.value),
-                      style: TextStyle(fontWeight: FontWeight.w800,
-                        color: Theme.of(context).colorScheme.onSurface)),
-                  ),
-                )),
-                SizedBox(height: 18),
-                Text('Registro por día',
-                    style: TextStyle(fontSize: 18,
-                        fontWeight: FontWeight.bold)),
-                SizedBox(height: 7),
-                ...byDay.entries.map((group) => Card(
-                  child: Padding(padding: const EdgeInsets.all(12),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          Icon(Icons.event_note_outlined,
-                              size: 18, color: Theme.of(context).colorScheme.primary),
-                          SizedBox(width: 7),
-                          Expanded(child: Text(group.key,
-                            style: TextStyle(fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.onSurface))),
-                          Text(_careCount(group.value.length),
-                            style: TextStyle(fontSize: 12,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                        ]),
-                        ...group.value.map((row) {
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: _dot(_colorFor(_typeKey(row)), size: 10),
-                            title: Text(_typeName(row)),
-                            subtitle: Text((row['time'] ?? '').toString()),
-                            trailing: IconButton(
-                              tooltip: 'Eliminar registro',
-                              icon: Icon(Icons.delete_outline),
-                              onPressed: () => deleteEntry(row),
+                  children: [
+                    Card(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      margin: EdgeInsets.zero,
+                      child: Padding(
+                        padding: const EdgeInsets.all(17),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 22,
+                              backgroundColor:
+                                  Theme.of(context).colorScheme.surface,
+                              child: Icon(
+                                Icons.insights_outlined,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
                             ),
-                          );
-                        }),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'El día a día de ${widget.petName}',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color:
+                                          Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Consulta cada actividad, su frecuencia '
+                                    'y cuándo la registraste.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color:
+                                          Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 10),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SegmentedButton<int>(
+                        showSelectedIcon: false,
+                        segments: const [
+                          ButtonSegment(value: 0, label: Text('Semana')),
+                          ButtonSegment(value: 1, label: Text('Mes')),
+                          ButtonSegment(value: 2, label: Text('Año')),
+                          ButtonSegment(value: 3, label: Text('Todos')),
+                        ],
+                        selected: {selectedPeriod},
+                        onSelectionChanged:
+                            (choice) => setState(() {
+                              selectedPeriod = choice.first;
+                              anchor = DateTime.now();
+                            }),
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    Row(
+                      children: [
+                        if (selectedPeriod != 3)
+                          IconButton(
+                            onPressed: () => shift(-1),
+                            icon: Icon(Icons.chevron_left),
+                            tooltip: 'Periodo anterior',
+                          ),
+                        Expanded(
+                          child: Text(
+                            periodTitle,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        if (selectedPeriod != 3)
+                          IconButton(
+                            onPressed: () => shift(1),
+                            icon: Icon(Icons.chevron_right),
+                            tooltip: 'Periodo siguiente',
+                          ),
                       ],
                     ),
-                  ),
-                )),
-                SizedBox(height: 14),
-                Text('Aquí aparecen los cuidados que registraste.',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-              ],
-            ),
-          ),
+                    SizedBox(height: 12),
+                    Card(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.verified_outlined,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _careCount(inPeriod.length),
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w800,
+                                      color:
+                                          Theme.of(
+                                            context,
+                                          ).colorScheme.onSurface,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 5),
+                            Text('En ${days.length} días diferentes.'),
+                            if (selectedPeriod == 0) ...[
+                              SizedBox(height: 13),
+                              ...List.generate(7, (index) {
+                                final day = periodStart.add(
+                                  Duration(days: index),
+                                );
+                                final todayEntries =
+                                    inPeriod.where((row) {
+                                      final stamp = _entryDate(row)!;
+                                      return stamp.year == day.year &&
+                                          stamp.month == day.month &&
+                                          stamp.day == day.day;
+                                    }).toList();
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 5,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 46,
+                                        child: Text(
+                                          _weekdayNames[index],
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: _typeDots(
+                                            todayEntries,
+                                            maxDots: 6,
+                                            diameter: 9,
+                                          ),
+                                        ),
+                                      ),
+                                      Text(
+                                        _careCount(todayEntries.length),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color:
+                                              Theme.of(
+                                                context,
+                                              ).colorScheme.onSurface,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (selectedPeriod == 1) ...[
+                      SizedBox(height: 12),
+                      monthCalendar(inPeriod),
+                    ],
+                    SizedBox(height: 17),
+                    Text(
+                      'Cuidados por actividad',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Cada actividad tiene un color; el número indica '
+                      'cuántas veces quedó registrada en el periodo.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    if (groupedTypes.isEmpty)
+                      Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(20),
+                          child: Text('No hay registros en este periodo.'),
+                        ),
+                      ),
+                    ...groupedTypes.map(
+                      (group) => Card(
+                        margin: const EdgeInsets.only(bottom: 7),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            radius: 17,
+                            backgroundColor: _colorFor(
+                              group.key,
+                            ).withValues(alpha: 0.13),
+                            child: _dot(_colorFor(group.key), size: 12),
+                          ),
+                          title: Text(
+                            _nameForType(group.key),
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          trailing: Text(
+                            _times(group.value),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 18),
+                    Text(
+                      'Registro por día',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 7),
+                    ...byDay.entries.map(
+                      (group) => Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.event_note_outlined,
+                                    size: 18,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
+                                  SizedBox(width: 7),
+                                  Expanded(
+                                    child: Text(
+                                      group.key,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color:
+                                            Theme.of(
+                                              context,
+                                            ).colorScheme.onSurface,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    _careCount(group.value.length),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color:
+                                          Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              ...group.value.map((row) {
+                                return ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: _dot(
+                                    _colorFor(_typeKey(row)),
+                                    size: 10,
+                                  ),
+                                  title: Text(_typeName(row)),
+                                  subtitle: Text(
+                                    (row['time'] ?? '').toString(),
+                                  ),
+                                  trailing: IconButton(
+                                    tooltip: 'Eliminar registro',
+                                    icon: Icon(Icons.delete_outline),
+                                    onPressed: () => deleteEntry(row),
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 14),
+                    Text(
+                      'Aquí aparecen los cuidados que registraste.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
     );
   }
 }
-
 
 Widget _petCareRemindersFooter(BuildContext context, Widget button) {
   final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
