@@ -35,7 +35,10 @@ class CloudDb {
 
   Future<void> saveUserProfile(User user, {String? name}) async {
     await _db.collection('users').doc(user.uid).set({
-      'name': (name?.trim().isNotEmpty ?? false) ? name!.trim() : (user.displayName ?? ''),
+      'name':
+          (name?.trim().isNotEmpty ?? false)
+              ? name!.trim()
+              : (user.displayName ?? ''),
       'email': user.email ?? '',
       'photoUrl': user.photoURL ?? '',
       'updatedAt': FieldValue.serverTimestamp(),
@@ -62,7 +65,10 @@ class CloudDb {
   }
 
   Future<void> updatePet(String id, Map<String, dynamic> values) async =>
-      _pets.doc(id).set({...values, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+      _pets.doc(id).set({
+        ...values,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
   Future<void> _deletePetWithCareAndReminders(
     DocumentReference<Map<String, dynamic>> petRef,
@@ -92,16 +98,20 @@ class CloudDb {
       _deletePetWithCareAndReminders(_pets.doc(id));
 
   Future<List<Map<String, dynamic>>> care(String petId) async {
-    final snap = await _pets.doc(petId).collection('care').orderBy('createdAt', descending: true).get();
+    final snap =
+        await _pets
+            .doc(petId)
+            .collection('care')
+            .orderBy('createdAt', descending: true)
+            .get();
     return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
   }
 
-  Future<void> addCare(
-      String petId, Map<String, dynamic> careType) async {
+  Future<String> addCare(String petId, Map<String, dynamic> careType) async {
     final now = DateTime.now();
     final time =
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-    await _pets.doc(petId).collection('care').add({
+    final created = await _pets.doc(petId).collection('care').add({
       'type': careType['id'].toString(),
       'label': careTypeLabel(careType),
       'done': true,
@@ -109,6 +119,11 @@ class CloudDb {
       'note': '',
       'createdAt': FieldValue.serverTimestamp(),
     });
+    return created.id;
+  }
+
+  Future<void> deleteCareRecord(String petId, String recordId) async {
+    await _pets.doc(petId).collection('care').doc(recordId).delete();
   }
 
   Future<bool> isAdmin() async {
@@ -119,7 +134,11 @@ class CloudDb {
   }
 
   Future<List<Map<String, dynamic>>> adminUsers() async {
-    final snap = await _db.collection('users').orderBy('updatedAt', descending: true).get();
+    final snap =
+        await _db
+            .collection('users')
+            .orderBy('updatedAt', descending: true)
+            .get();
     return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
   }
 
@@ -127,32 +146,52 @@ class CloudDb {
       _db.collection('users').doc(userId).collection('pets');
 
   Future<List<Map<String, dynamic>>> adminUserPets(String userId) async {
-    final snap = await adminPets(userId).orderBy('createdAt', descending: true).get();
+    final snap =
+        await adminPets(userId).orderBy('createdAt', descending: true).get();
     return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
   }
 
-  Future<void> adminSavePet(String userId, {String? petId, required Map<String, dynamic> values}) async {
+  Future<void> adminSavePet(
+    String userId, {
+    String? petId,
+    required Map<String, dynamic> values,
+  }) async {
     if (petId == null) {
-      await adminPets(userId).add({...values, 'createdAt': FieldValue.serverTimestamp(), 'updatedAt': FieldValue.serverTimestamp()});
+      await adminPets(userId).add({
+        ...values,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     } else {
-      await adminPets(userId).doc(petId).set({...values, 'updatedAt': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+      await adminPets(userId).doc(petId).set({
+        ...values,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     }
   }
 
   Future<void> adminDeletePet(String userId, String petId) =>
       _deletePetWithCareAndReminders(adminPets(userId).doc(petId));
 
-  Future<List<Map<String, dynamic>>> adminCare(String userId, String petId) async {
-    final snap = await adminPets(userId).doc(petId).collection('care').orderBy('createdAt', descending: true).get();
+  Future<List<Map<String, dynamic>>> adminCare(
+    String userId,
+    String petId,
+  ) async {
+    final snap =
+        await adminPets(userId)
+            .doc(petId)
+            .collection('care')
+            .orderBy('createdAt', descending: true)
+            .get();
     return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
   }
 
   Future<void> adminAddCare(
-      String userId,
-      String petId,
-      Map<String, dynamic> careType, {
-      String note = '',
-    }) async {
+    String userId,
+    String petId,
+    Map<String, dynamic> careType, {
+    String note = '',
+  }) async {
     final now = DateTime.now();
     final time =
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
@@ -167,18 +206,21 @@ class CloudDb {
   }
 
   Future<void> adminUpdateCare(
-      String userId,
-      String petId,
-      String careId,
-      Map<String, dynamic> values) async =>
-      adminPets(userId)
-          .doc(petId)
-          .collection('care')
-          .doc(careId)
-          .set(values, SetOptions(merge: true));
+    String userId,
+    String petId,
+    String careId,
+    Map<String, dynamic> values,
+  ) async => adminPets(userId)
+      .doc(petId)
+      .collection('care')
+      .doc(careId)
+      .set(values, SetOptions(merge: true));
 
   Future<void> adminDeleteCare(
-          String userId, String petId, String careId) async =>
+    String userId,
+    String petId,
+    String careId,
+  ) async =>
       adminPets(userId).doc(petId).collection('care').doc(careId).delete();
 
   CollectionReference<Map<String, dynamic>> get _careCatalog =>
@@ -186,36 +228,53 @@ class CloudDb {
 
   Future<List<Map<String, dynamic>>> careCatalog() async {
     final snap = await _careCatalog.get();
-    final result =
-        snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
-    result.sort((a, b) => careTypeLabel(a)
-        .toLowerCase()
-        .compareTo(careTypeLabel(b).toLowerCase()));
+    final result = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+    result.sort(
+      (a, b) => careTypeLabel(
+        a,
+      ).toLowerCase().compareTo(careTypeLabel(b).toLowerCase()),
+    );
     return result;
   }
 
   Future<List<Map<String, dynamic>>> careCatalogForSpecies(
-      String species) async {
+    String species,
+  ) async {
     final all = await careCatalog();
     if (all.isEmpty) {
-      final marker =
-          await _db.collection('appConfig').doc('careCatalog').get();
+      final marker = await _db.collection('appConfig').doc('careCatalog').get();
       if (!marker.exists) {
         return defaultCareForSpecies(species);
       }
     }
-    return all.where((row) {
-      final active = row['active'] != false;
-      final rawSpecies = row['species'];
-      final speciesList = rawSpecies is List
-          ? rawSpecies.map((e) => e.toString()).toList()
-          : <String>[];
-      return active && speciesList.contains(species);
-    }).toList();
+    final visible =
+        all.where((row) {
+          final active = row['active'] != false;
+          final rawSpecies = row['species'];
+          final speciesList =
+              rawSpecies is List
+                  ? rawSpecies.map((e) => e.toString()).toList()
+                  : <String>[];
+          return active && speciesList.contains(species);
+        }).toList();
+
+    final configured = all.any((row) {
+      final speciesList = row['species'];
+      return speciesList is List && speciesList.contains(species);
+    });
+    if (!configured &&
+        (species == 'Iguana' ||
+            species == 'Erizo' ||
+            species == 'Otra especie')) {
+      return defaultCareForSpecies(species);
+    }
+    return visible;
   }
 
   Future<List<Map<String, dynamic>>> careCatalogForPet(
-      String species, Map<String, dynamic> pet) async {
+    String species,
+    Map<String, dynamic> pet,
+  ) async {
     final base = await careCatalogForSpecies(species);
     return mergedCareCatalogForPet(base, pet);
   }
@@ -275,9 +334,7 @@ class CloudDb {
         'createdAt': FieldValue.serverTimestamp(),
       });
     } else {
-      await _careCatalog
-          .doc(careId)
-          .set(values, SetOptions(merge: true));
+      await _careCatalog.doc(careId).set(values, SetOptions(merge: true));
     }
   }
 

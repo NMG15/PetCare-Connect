@@ -4,9 +4,14 @@ import 'package:crop_your_image/crop_your_image.dart';
 import 'package:flutter/material.dart';
 
 class ProfilePhotoCropPage extends StatefulWidget {
-  const ProfilePhotoCropPage({super.key, required this.imageBytes});
+  const ProfilePhotoCropPage({
+    super.key,
+    required this.imageBytes,
+    this.forPet = false,
+  });
 
   final Uint8List imageBytes;
+  final bool forPet;
 
   @override
   State<ProfilePhotoCropPage> createState() => _ProfilePhotoCropPageState();
@@ -87,8 +92,12 @@ class _ProfilePhotoCropPageState extends State<ProfilePhotoCropPage> {
                   const SizedBox(height: 10),
                   Text(
                     showingPreview
-                        ? 'Así se verá tu fotografía'
-                        : 'Coloca tu rostro dentro del círculo',
+                        ? (widget.forPet
+                            ? 'Así se verá tu mascota'
+                            : 'Así se verá tu fotografía')
+                        : (widget.forPet
+                            ? 'Centra a tu mascota en el círculo'
+                            : 'Coloca tu rostro dentro del círculo'),
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
