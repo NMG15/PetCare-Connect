@@ -45,35 +45,6 @@ PetCare Connect organiza los cuidados de tus mascotas con una interfaz de tonos 
 3. Instálalo en un teléfono Android compatible.
 4. Si ya usas PetCare, actualiza **sin desinstalar** para conservar los datos locales, siempre que la firma sea compatible.
 
-> Antes de actualizar, conserva una copia de seguridad de tus datos importantes. Los recordatorios dependen de los permisos de Android y de la configuración de batería.
-
-## Comprobaciones de calidad
-
-El proyecto fue revisado con el analizador de Flutter, pruebas automatizadas y el flujo de GitHub Actions. Los resultados detallados pueden consultarse en el historial de [Actions](https://github.com/NMG15/PetCare-Connect/actions) y los [Pull Requests](https://github.com/NMG15/PetCare-Connect/pulls?q=is%3Apr+is%3Aclosed).
-
-Estas comprobaciones no sustituyen las pruebas manuales de todas las funciones, especialmente de servicios externos como Google Sign-In.
-
-## Control de cambios y evaluaciones
-
-- [Actualización funcional V45 (PR #14)](https://github.com/NMG15/PetCare-Connect/pull/14).
-- [Actualización de documentación V45 (PR #15)](https://github.com/NMG15/PetCare-Connect/pull/15).
-- [Seguimiento de mejoras V45](pruebas/V45/SEGUIMIENTO.md).
-
-Las observaciones originales de los evaluadores deben conservarse como evidencias independientes; este README no las sustituye ni afirma que evaluaron la nueva versión.
-
-## Tecnologías
-
-Flutter · Dart · Android · Firebase Authentication · Cloud Firestore.
-
-**Identificación técnica:** versión Android `0.21.16`, compilación `45`. El nombre de esta entrega es **V45**. No se cambia la numeración interna de la APK.
-
-Para comprobar el código fuente:
-
-```bash
-flutter pub get
-flutter analyze
-flutter test
-```
 
 ## Privacidad y seguridad
 
@@ -87,6 +58,6 @@ Las contraseñas, las claves de firma y los registros técnicos privados **no de
 
 <div align="center">
 
-**PetCare Connect V45 · Proyecto académico · 2026**
+
 
 </div>
